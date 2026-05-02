@@ -17,4 +17,8 @@ class JobApplication:
     cv_uploaded_at: Optional[datetime] = None
 
     cv_text: Optional[str] = None
+    cv_processing_status: Optional[str] = None  # pending, processed, failed
+    cv_processed_at: Optional[datetime] = None
+    cv_processing_error: Optional[str] = None
+    
     created_at: datetime = None # type: ignore

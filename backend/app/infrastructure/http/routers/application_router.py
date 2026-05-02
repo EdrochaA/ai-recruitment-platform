@@ -5,6 +5,7 @@ from app.application.use_cases.list_applications_by_job_offer import (
     ListApplicationsByJobOffer,
 )
 from app.application.use_cases.upload_application_cv import UploadApplicationCV
+from app.application.use_cases.process_application_cv import ProcessApplicationCV
 
 from app.infrastructure.http.schemas.application_schema import (
     CreateApplicationRequest,
@@ -15,6 +16,7 @@ from app.shared.dependencies import (
     get_create_application_use_case,
     get_list_applications_use_case,
     get_upload_application_cv_use_case,
+    get_process_application_cv_use_case,
 )
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -108,4 +110,32 @@ async def upload_cv(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{application_id}/cv/process",
+    response_model=ApplicationResponse,
+    status_code=status.HTTP_200_OK,
+)
+def process_application_cv(
+    application_id: str,
+    use_case: ProcessApplicationCV = Depends(get_process_application_cv_use_case),
+):
+    """Extract and process CV text from uploaded PDF."""
+    try:
+        application = use_case.execute(application_id=application_id)
+        return ApplicationResponse(**application.__dict__)
+
+    except ValueError as exc:
+        error_detail = str(exc)
+        # Distinguish between not found and processing error
+        if "not found" in error_detail:
+            status_code = status.HTTP_404_NOT_FOUND
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+
+        raise HTTPException(
+            status_code=status_code,
+            detail=error_detail,
         ) from exc

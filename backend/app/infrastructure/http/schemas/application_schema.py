@@ -21,5 +21,8 @@ class ApplicationResponse(BaseModel):
     cv_size_bytes: Optional[int] = None
     cv_uploaded_at: Optional[datetime] = None
     cv_text: Optional[str] = None
+    cv_processing_status: Optional[str] = None
+    cv_processed_at: Optional[datetime] = None
+    cv_processing_error: Optional[str] = None
 
     created_at: datetime
