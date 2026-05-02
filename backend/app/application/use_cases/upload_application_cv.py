@@ -1,13 +1,13 @@
 from datetime import datetime
-from app.domain.entities.application import Application
-from app.domain.ports.application_repository import ApplicationRepository
+from app.domain.entities.job_application import JobApplication
+from app.domain.ports.job_application_repository import JobApplicationRepository
 from app.domain.ports.file_storage import FileStorage
 
 
 class UploadApplicationCV:
     def __init__(
         self,
-        application_repository: ApplicationRepository,
+        application_repository: JobApplicationRepository,
         file_storage: FileStorage,
     ):
         self.application_repository = application_repository
@@ -19,11 +19,11 @@ class UploadApplicationCV:
         original_filename: str,
         content_type: str,
         file_bytes: bytes,
-    ) -> Application:
-        application = self.application_repository.find_by_id(application_id)
+    ) -> JobApplication:
+        job_application = self.application_repository.find_by_id(application_id)
 
-        if not application:
-            raise ValueError("Application not found")
+        if not job_application:
+            raise ValueError("JobApplication not found")
 
         storage_key = self.file_storage.save(
             file_bytes=file_bytes,
@@ -31,10 +31,10 @@ class UploadApplicationCV:
             filename=original_filename,
         )
 
-        application.cv_original_filename = original_filename
-        application.cv_storage_key = storage_key
-        application.cv_content_type = content_type
-        application.cv_size_bytes = len(file_bytes)
-        application.cv_uploaded_at = datetime.utcnow()
+        job_application.cv_original_filename = original_filename
+        job_application.cv_storage_key = storage_key
+        job_application.cv_content_type = content_type
+        job_application.cv_size_bytes = len(file_bytes)
+        job_application.cv_uploaded_at = datetime.utcnow()
 
-        return self.application_repository.update(application)
+        return self.application_repository.update(job_application)

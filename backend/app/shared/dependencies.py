@@ -9,14 +9,14 @@ from app.application.use_cases.upload_application_cv import UploadApplicationCV
 from app.infrastructure.persistence.in_memory.in_memory_job_offer_repository import (
     InMemoryJobOfferRepository,
 )
-from app.infrastructure.persistence.in_memory.in_memory_application_repository import (
-    InMemoryApplicationRepository,
+from app.infrastructure.persistence.in_memory.in_memory_job_application_repository import (
+    InMemoryJobApplicationRepository,
 )
 from app.infrastructure.storage.local_file_storage import LocalFileStorage
 
 
 job_offer_repository = InMemoryJobOfferRepository()
-application_repository = InMemoryApplicationRepository()
+application_repository = InMemoryJobApplicationRepository()
 file_storage = LocalFileStorage()
 
 

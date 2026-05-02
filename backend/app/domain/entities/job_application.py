@@ -4,7 +4,7 @@ from typing import Optional
 
 
 @dataclass
-class Application:
+class JobApplication:
     id: str
     job_offer_id: str
     candidate_name: str
