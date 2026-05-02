@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.application.use_cases.create_job_offer import CreateJobOffer
 from app.application.use_cases.list_job_offers import ListJobOffers
-from app.infrastructure.http.schemas.job_offer_schema import (
+from app.adapters.http.schemas.job_offer_schema import (
     CreateJobOfferRequest,
     JobOfferResponse,
 )

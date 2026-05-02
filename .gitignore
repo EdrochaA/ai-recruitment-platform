@@ -1,5 +1,39 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Environment
 .env
+.env.local
 .venv/
+venv/
+ENV/
+
+# IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-specific
+storage/
+*/storage/
+*.pdf
+test_*.py
+create_test_*.py
+uv.lock
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/

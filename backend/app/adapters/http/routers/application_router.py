@@ -7,7 +7,7 @@ from app.application.use_cases.list_applications_by_job_offer import (
 from app.application.use_cases.upload_application_cv import UploadApplicationCV
 from app.application.use_cases.process_application_cv import ProcessApplicationCV
 
-from app.infrastructure.http.schemas.application_schema import (
+from app.adapters.http.schemas.application_schema import (
     CreateApplicationRequest,
     ApplicationResponse,
 )

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
-from app.infrastructure.http.routers.job_offer_router import router as job_offer_router
-from app.infrastructure.http.routers.application_router import router as application_router
+from app.adapters.http.routers.job_offer_router import router as job_offer_router
+from app.adapters.http.routers.application_router import router as application_router
 
 app = FastAPI()
 
