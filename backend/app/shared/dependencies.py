@@ -17,13 +17,39 @@ from app.adapters.persistence.in_memory.in_memory_job_application_repository imp
 from app.adapters.storage.local_file_storage import LocalFileStorage
 from app.adapters.cv_processing.pdf_cv_text_extractor import PDFCVTextExtractor
 from app.adapters.ai.simple_cv_analyzer import SimpleCVAnalyzer
+from app.adapters.agent.agentcore_cv_analyzer import AgentCoreCVAnalyzer
+
+from app.shared.config import get_cv_analyzer_config, CVAnalyzerProvider
 
 
 job_offer_repository = InMemoryJobOfferRepository()
 application_repository = InMemoryJobApplicationRepository()
 file_storage = LocalFileStorage()
 cv_text_extractor = PDFCVTextExtractor()
-cv_analyzer = SimpleCVAnalyzer()
+
+
+def _get_cv_analyzer():
+    """Factory function to create the appropriate CV Analyzer based on configuration.
+    
+    Returns either SimpleCVAnalyzer (default, no dependencies) or 
+    AgentCoreCVAnalyzer (AWS Bedrock AgentCore integration).
+    """
+    config = get_cv_analyzer_config()
+    
+    if config.is_agentcore_enabled():
+        return AgentCoreCVAnalyzer(
+            runtime_id=config.agentcore_runtime_id,
+            runtime_arn=config.agentcore_runtime_arn,
+            agent_id=config.agentcore_agent_id,
+            region=config.aws_region,
+            model_id=config.bedrock_model_id,
+        )
+    else:
+        return SimpleCVAnalyzer()
+
+
+# Create the analyzer instance once (can be replaced by tests)
+cv_analyzer = _get_cv_analyzer()
 
 
 def get_create_job_offer_use_case() -> CreateJobOffer:
