@@ -6,6 +6,7 @@ from app.application.use_cases.list_applications_by_job_offer import (
 )
 from app.application.use_cases.upload_application_cv import UploadApplicationCV
 from app.application.use_cases.process_application_cv import ProcessApplicationCV
+from app.application.use_cases.analyze_application_cv import AnalyzeApplicationCV
 
 from app.adapters.http.schemas.application_schema import (
     CreateApplicationRequest,
@@ -17,6 +18,7 @@ from app.shared.dependencies import (
     get_list_applications_use_case,
     get_upload_application_cv_use_case,
     get_process_application_cv_use_case,
+    get_analyze_application_cv_use_case,
 )
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -123,6 +125,37 @@ def process_application_cv(
     use_case: ProcessApplicationCV = Depends(get_process_application_cv_use_case),
 ):
     """Extract and process CV text from uploaded PDF."""
+    try:
+        application = use_case.execute(application_id=application_id)
+        return ApplicationResponse(**application.__dict__)
+
+    except ValueError as exc:
+        error_detail = str(exc)
+        # Distinguish between not found and processing error
+        if "not found" in error_detail:
+            status_code = status.HTTP_404_NOT_FOUND
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+
+        raise HTTPException(
+            status_code=status_code,
+            detail=error_detail,
+        ) from exc
+
+
+@router.post(
+    "/{application_id}/cv/analyze",
+    response_model=ApplicationResponse,
+    status_code=status.HTTP_200_OK,
+)
+def analyze_application_cv(
+    application_id: str,
+    use_case: AnalyzeApplicationCV = Depends(get_analyze_application_cv_use_case),
+):
+    """Analyze CV using intelligent CV analyzer.
+    
+    Extracts skills, experience and compatibility score based on job requirements.
+    """
     try:
         application = use_case.execute(application_id=application_id)
         return ApplicationResponse(**application.__dict__)

@@ -25,4 +25,13 @@ class ApplicationResponse(BaseModel):
     cv_processed_at: Optional[datetime] = None
     cv_processing_error: Optional[str] = None
 
+    # CV Analysis fields
+    cv_analysis_status: str = "pending"
+    cv_analysis_score: Optional[int] = None
+    cv_analysis_summary: Optional[str] = None
+    cv_analysis_skills: Optional[list[str]] = None
+    cv_analysis_experience: Optional[str] = None
+    cv_analyzed_at: Optional[datetime] = None
+    cv_analysis_error: Optional[str] = None
+
     created_at: datetime
