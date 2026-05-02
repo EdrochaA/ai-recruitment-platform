@@ -3,10 +3,22 @@ from app.domain.entities.cv_analysis import CVAnalysisResult
 
 
 class CVAnalyzer(ABC):
-    """Puerto para análisis de CVs.
+    """Puerto para análisis inteligente de CVs.
     
-    Define la interfaz que debe implementar cualquier analizador de CVs,
-    permitiendo futuras integraciones con servicios externos como AWS Bedrock.
+    Define el contrato que debe implementar cualquier analizador de CVs,
+    permitiendo múltiples estrategias de análisis desacopladas del dominio.
+    
+    El puerto habilita tanto análisis heurísticos simples como integraciones
+    con servicios externos de IA, manteniendo la arquitectura hexagonal:
+    
+    Implementaciones posibles:
+    - SimpleCVAnalyzer: Análisis heurístico basado en patrones (actual)
+    - BedrockCVAnalyzer: LLM directo mediante AWS Bedrock
+    - AgentCoreCVAnalyzer: Agente inteligente mediante AWS AgentCore
+      (que puede usar Bedrock como modelo subyacente)
+    
+    El dominio solo conoce la interfaz; AWS, AgentCore y Bedrock quedan
+    aislados en adapters/, permitiendo cambios sin modificar domain ni application.
     """
 
     @abstractmethod
