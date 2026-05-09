@@ -1,15 +1,24 @@
 import json
+import logging
 import os
 import re
 from typing import Any
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 try:
     from bedrock_agentcore.runtime import BedrockAgentCoreApp
 except Exception:
     BedrockAgentCoreApp = None
+
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(levelname)s | %(message)s",
+)
+logger = logging.getLogger("agentcore-runtime")
 
 
 def _error(message: str, status: int = 400) -> dict:
@@ -19,6 +28,22 @@ def _error(message: str, status: int = 400) -> dict:
             "status": status,
         }
     }
+
+
+def _is_bedrock_enabled() -> bool:
+    return os.getenv("USE_BEDROCK", "false").lower() == "true"
+
+
+def _get_bedrock_config() -> tuple[str | None, str | None]:
+    return os.getenv("AWS_REGION"), os.getenv("BEDROCK_MODEL_ID")
+
+
+def _create_bedrock_client(region: str):
+    # Keep config minimal but allow safe timeouts via env
+    read_timeout = int(os.getenv("BEDROCK_READ_TIMEOUT", "60"))
+    connect_timeout = int(os.getenv("BEDROCK_CONNECT_TIMEOUT", "10"))
+    config = Config(read_timeout=read_timeout, connect_timeout=connect_timeout)
+    return boto3.client("bedrock-runtime", region_name=region, config=config)
 
 
 def _job_offer_to_text(job_offer: Any) -> str | None:
@@ -188,17 +213,17 @@ def _normalize_response(payload: dict) -> dict:
 
 
 def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
-    region = os.getenv("AWS_REGION")
-    model_id = os.getenv("BEDROCK_MODEL_ID")
+    region, model_id = _get_bedrock_config()
     if not region or not model_id:
         raise ValueError("AWS_REGION and BEDROCK_MODEL_ID must be set for Bedrock")
 
     prompt = _build_prompt(cv_text, job_offer)
     max_tokens = int(os.getenv("BEDROCK_MAX_TOKENS", "700"))
 
-    client = boto3.client("bedrock-runtime", region_name=region)
+    client = _create_bedrock_client(region)
 
     try:
+        logger.info(f"Bedrock enabled. model_id={model_id}")
         if "anthropic" in model_id:
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
@@ -225,6 +250,8 @@ def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
         if not raw_body:
             raise ValueError("Empty response body from Bedrock")
         response_text = raw_body.read().decode("utf-8")
+        if not response_text.strip():
+            raise ValueError("Empty response text from Bedrock")
 
         parsed = json.loads(response_text)
         if "content" in parsed and isinstance(parsed["content"], list):
@@ -232,28 +259,33 @@ def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
             llm_text = "".join(text_parts).strip()
         else:
             llm_text = response_text.strip()
+        if not llm_text:
+            raise ValueError("Empty LLM response text")
 
         extracted = _extract_json(llm_text)
         return _normalize_response(extracted)
 
     except (ClientError, BotoCoreError) as exc:
         raise RuntimeError(f"Bedrock error: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Invalid JSON from Bedrock: {exc}") from exc
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid Bedrock response: {exc}") from exc
 
 
 def analyze_cv(payload: dict) -> dict:
+    logger.info("Received payload for analysis")
     validated = _validate_payload(payload)
     cv_text = validated["cv_text"]
     job_offer = validated["job_offer"]
 
-    use_bedrock = os.getenv("USE_BEDROCK", "false").lower() == "true"
+    use_bedrock = _is_bedrock_enabled()
     if use_bedrock:
         try:
             return _bedrock_analyze(cv_text, job_offer)
-        except Exception:
+        except Exception as exc:
+            logger.error(f"Bedrock failed, falling back to mock: {exc}")
             return _mock_analyze(cv_text, job_offer)
 
+    logger.info("USE_BEDROCK is false. Using mock analysis.")
     return _mock_analyze(cv_text, job_offer)
 
 
@@ -264,8 +296,10 @@ if app:
     @app.entrypoint
     async def invoke(payload, context=None):
         try:
+            logger.info("Invoking runtime entrypoint")
             return analyze_cv(payload)
         except Exception as exc:
+            logger.error(f"Runtime error: {exc}")
             return _error(str(exc))
 
 
@@ -284,6 +318,8 @@ def _local_test() -> None:
 
 if __name__ == "__main__":
     if app is not None and os.getenv("LOCAL_TEST", "false").lower() != "true":
+        logger.info("Starting Bedrock AgentCore runtime")
         app.run()
     else:
+        logger.info("Running local test mode")
         _local_test()
