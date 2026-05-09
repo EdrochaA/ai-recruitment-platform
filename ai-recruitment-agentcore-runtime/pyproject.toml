@@ -6,6 +6,8 @@ requires-python = ">=3.10"
 
 dependencies = [
     "bedrock-agentcore",
+    "boto3",
+    "botocore",
 ]
 
 [tool.uv]
