@@ -25,7 +25,7 @@ AgentCoreCVAnalyzer (Adapter)
      ↓
 AgentCoreClient (AWS Integration)
      ↓
-boto3: bedrock-agentcore-runtime
+boto3: bedrock-agentcore (InvokeAgentRuntime)
      ↓
 AWS Bedrock AgentCore Runtime
      ↓
@@ -75,9 +75,10 @@ export AWS_PROFILE=your-profile-name
 ### Configuration Priority
 
 1. **Runtime Identifier** (required):
-   - Use `AGENTCORE_RUNTIME_ARN` if you have the full ARN
-   - Otherwise, set `AGENTCORE_RUNTIME_ID`
-   - If neither is set, automatically falls back to `SimpleCVAnalyzer`
+  - The AWS SDK InvokeAgentRuntime call requires the **Agent Runtime ARN**
+  - Set `AGENTCORE_RUNTIME_ARN` whenever possible
+  - `AGENTCORE_RUNTIME_ID` is accepted only if it already contains an ARN
+  - If neither is set, automatically falls back to `SimpleCVAnalyzer`
 
 2. **AWS Credentials**:
    - Uses AWS SDK credential chain:
@@ -202,7 +203,7 @@ Expected response includes:
 1. **Request Arrives**: `POST /applications/{id}/cv/analyze`
 2. **Validate**: Check CV text exists, job description exists
 3. **Build Prompt**: Create analysis prompt with CV and job description
-4. **Invoke AgentCore**: Call boto3 bedrock-agentcore-runtime client
+4. **Invoke AgentCore**: Call boto3 bedrock-agentcore client (InvokeAgentRuntime)
 5. **Generate Session**: Create unique session ID for traceability
 6. **LLM Analysis**: AgentCore routes to Claude for analysis
 7. **Parse Response**: Extract JSON from LLM response
@@ -300,7 +301,7 @@ The system will automatically fall back to SimpleCVAnalyzer if not set.
      "Statement": [{
        "Effect": "Allow",
        "Action": [
-         "bedrock-agentcore-runtime:Invoke"
+        "bedrock-agentcore:InvokeAgentRuntime"
        ],
        "Resource": "arn:aws:bedrock-agentcore:*:*:runtime/*"
      }]
@@ -372,7 +373,7 @@ python -m uvicorn app.main:app --reload
 
 ## Architecture Decisions
 
-### Why boto3 bedrock-agentcore-runtime?
+### Why boto3 bedrock-agentcore?
 
 We use the low-level boto3 client instead of higher-level SDKs because:
 1. **Control**: Full visibility into API calls

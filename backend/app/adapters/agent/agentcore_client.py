@@ -169,12 +169,12 @@ class AgentCoreClient:
         """Real invocation against AgentCore runtime using boto3.
         
         This implements actual communication with AWS Bedrock AgentCore runtime.
-        Follows the pattern from cc-swp-blueprint-agent-memory:
+        Follows the AWS InvokeAgentRuntime flow:
         
         Flow:
         1. Build system prompt asking for CV analysis
         2. Create session ID if not provided
-        3. Invoke AgentCore runtime via boto3
+        3. Invoke AgentCore runtime via boto3 (bedrock-agentcore)
         4. Parse and extract JSON from LLM response
         5. Validate and normalize response structure
         6. Return structured analysis data
@@ -304,7 +304,7 @@ Return ONLY the JSON object. No additional text before or after."""
     def _invoke_agentcore_runtime(self, payload: dict, session_id: str) -> dict:
         """Invoke the AgentCore runtime via boto3.
         
-        Uses the bedrock-agentcore-runtime service to send the payload
+        Uses the bedrock-agentcore service to send the payload
         to the configured runtime.
         
         Args:
@@ -324,41 +324,39 @@ Return ONLY the JSON object. No additional text before or after."""
                 "Provide either runtime_arn or runtime_id."
             )
         
-        # Use runtime_arn if available, otherwise construct from runtime_id
+        # Use runtime_arn if available, otherwise fall back to runtime_id
         runtime_identifier = self.runtime_arn or self.runtime_id
+        if not runtime_identifier or not str(runtime_identifier).startswith("arn:"):
+            raise ValueError(
+                "InvokeAgentRuntime requires an Agent Runtime ARN. "
+                "Set AGENTCORE_RUNTIME_ARN (or provide an ARN in runtime_id)."
+            )
         
         try:
-            # Initialize bedrock-agentcore-runtime client
+            # Initialize bedrock-agentcore client (InvokeAgentRuntime)
             client = boto3.client(
-                "bedrock-agentcore-runtime",
+                "bedrock-agentcore",
                 region_name=self.region,
             )
             
             logger.debug(
-                f"Invoking bedrock-agentcore-runtime. "
-                f"runtime={runtime_identifier}, agent_id={self.agent_id}"
+                f"Invoking bedrock-agentcore. runtime={runtime_identifier}"
             )
             
-            # Build the request
-            invoke_kwargs = {
-                "runtimeIdentifier": runtime_identifier,
-                "agentAliasId": "DEFAULT",  # Use default qualifier
-                "sessionId": session_id,
-                "inputText": payload["prompt"],
-            }
-
-            # Add session state if actor_id provided
-            if payload.get("actor_id"):
-                invoke_kwargs["sessionState"] = {
-                    "sessionAttributes": {
-                        "actor_id": payload["actor_id"],
-                    }
-                }
+            # Build the request payload (binary)
+            payload_bytes = json.dumps(payload).encode("utf-8")
 
             # Send request to AgentCore runtime
-            response = client.invoke(**invoke_kwargs)
+            response = client.invoke_agent_runtime(
+                agentRuntimeArn=runtime_identifier,
+                runtimeSessionId=session_id,
+                payload=payload_bytes,
+            )
             
-            logger.debug(f"AgentCore runtime response status: {response.get('ResponseMetadata', {}).get('HTTPStatusCode')}")
+            logger.debug(
+                "AgentCore runtime response status: "
+                f"{response.get('ResponseMetadata', {}).get('HTTPStatusCode')}"
+            )
             
             return response
         
@@ -379,7 +377,7 @@ Return ONLY the JSON object. No additional text before or after."""
         and response structure. This method extracts the actual agent output text.
         
         Args:
-            response_data: Response from bedrock-agentcore-runtime invoke call
+            response_data: Response from bedrock-agentcore InvokeAgentRuntime call
             
         Returns:
             The agent's response text
@@ -388,39 +386,46 @@ Return ONLY the JSON object. No additional text before or after."""
             ValueError: If response structure is unexpected
         """
         try:
-            # Try to get the output from different possible locations
+            # InvokeAgentRuntime returns contentType and a streaming body in "response"
+            content_type = response_data.get("contentType", "")
+            if "response" in response_data:
+                body = response_data["response"]
+                content = None
+
+                if hasattr(body, "iter_lines"):
+                    # Handle event stream responses
+                    chunks = []
+                    for line in body.iter_lines(chunk_size=10):
+                        if not line:
+                            continue
+                        text_line = line.decode("utf-8")
+                        if text_line.startswith("data: "):
+                            text_line = text_line[6:]
+                        chunks.append(text_line)
+                    content = "".join(chunks)
+                elif hasattr(body, "read"):
+                    content = body.read().decode("utf-8")
+
+                if content is not None:
+                    content = content.strip()
+                    if "application/json" in content_type:
+                        return content
+                    if content.startswith("{"):
+                        return content
+                    return content
+
+            # Legacy/alternate response shapes
             if "output" in response_data:
                 return response_data["output"]
-            
+
             if "text" in response_data:
                 return response_data["text"]
-            
+
             if "messages" in response_data and isinstance(response_data["messages"], list):
                 if response_data["messages"]:
                     msg = response_data["messages"][-1]
                     if isinstance(msg, dict) and "content" in msg:
                         return msg["content"]
-            
-            # If using streaming, concatenate chunks
-            if "body" in response_data:
-                # This is a streaming response from invoke()
-                body = response_data["body"]
-                if hasattr(body, "read"):
-                    content = body.read().decode("utf-8")
-                    content = content.strip()
-                    if content.startswith("{"):
-                        try:
-                            parsed = json.loads(content)
-                            if isinstance(parsed, dict):
-                                if "output" in parsed:
-                                    return parsed["output"]
-                                if "outputText" in parsed:
-                                    return parsed["outputText"]
-                                if "text" in parsed:
-                                    return parsed["text"]
-                        except json.JSONDecodeError:
-                            pass
-                    return content
             
             logger.error(f"Unexpected AgentCore response structure: {list(response_data.keys())}")
             raise ValueError("AgentCore response has unexpected structure. Cannot extract agent output.")
