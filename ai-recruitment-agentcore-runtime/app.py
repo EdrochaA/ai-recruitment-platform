@@ -17,6 +17,38 @@ def _error(message: str, status: int = 400) -> dict:
     }
 
 
+def _job_offer_to_text(job_offer: Any) -> str | None:
+    if job_offer is None:
+        return None
+
+    if isinstance(job_offer, str):
+        return job_offer.strip() or None
+
+    if isinstance(job_offer, dict):
+        parts = []
+        title = job_offer.get("title")
+        description = job_offer.get("description")
+        requirements = job_offer.get("requirements")
+
+        if isinstance(title, str) and title.strip():
+            parts.append(f"Title: {title.strip()}")
+        if isinstance(description, str) and description.strip():
+            parts.append(f"Description: {description.strip()}")
+
+        if isinstance(requirements, list):
+            req_list = [str(item).strip() for item in requirements if str(item).strip()]
+            if req_list:
+                parts.append(f"Requirements: {', '.join(req_list)}")
+        elif isinstance(requirements, str) and requirements.strip():
+            parts.append(f"Requirements: {requirements.strip()}")
+
+        if parts:
+            return "\n".join(parts)
+        return None
+
+    raise ValueError("'job_offer' must be a string or object when provided")
+
+
 def _validate_payload(payload: Any) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("Payload must be a JSON object")
@@ -29,12 +61,15 @@ def _validate_payload(payload: Any) -> dict:
     if job_offer is None:
         job_offer = payload.get("job_description")
 
-    if job_offer is not None and not isinstance(job_offer, str):
-        raise ValueError("'job_offer' must be a string when provided")
+    job_offer_text = _job_offer_to_text(job_offer)
+    if job_offer is not None and job_offer_text is None:
+        raise ValueError(
+            "'job_offer' must include at least one of: title, description, requirements"
+        )
 
     return {
         "cv_text": cv_text.strip(),
-        "job_offer": job_offer.strip() if isinstance(job_offer, str) else None,
+        "job_offer": job_offer_text,
     }
 
 
@@ -109,11 +144,18 @@ if app:
 def _local_test() -> None:
     sample_payload = {
         "cv_text": "Senior backend engineer with Python, FastAPI, AWS, Docker.",
-        "job_offer": "Looking for Python, FastAPI, PostgreSQL, Docker and AWS.",
+        "job_offer": {
+            "title": "Senior Python Developer",
+            "description": "Backend role focused on APIs and data systems.",
+            "requirements": ["Python", "FastAPI", "PostgreSQL", "Docker", "AWS"],
+        },
     }
     result = analyze_cv(sample_payload)
     print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
-    _local_test()
+    if app is not None and os.getenv("LOCAL_TEST", "false").lower() != "true":
+        app.run()
+    else:
+        _local_test()
