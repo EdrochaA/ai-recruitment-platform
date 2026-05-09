@@ -223,7 +223,7 @@ def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
     client = _create_bedrock_client(region)
 
     try:
-        logger.info(f"Bedrock enabled. model_id={model_id}")
+        logger.info("Bedrock enabled. model_id=%s", model_id)
         if "anthropic" in model_id:
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
@@ -266,9 +266,9 @@ def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
         return _normalize_response(extracted)
 
     except (ClientError, BotoCoreError) as exc:
-        raise RuntimeError(f"Bedrock error: {exc}") from exc
+        raise RuntimeError("Bedrock error: %s" % exc) from exc
     except (json.JSONDecodeError, ValueError) as exc:
-        raise RuntimeError(f"Invalid Bedrock response: {exc}") from exc
+        raise RuntimeError("Invalid Bedrock response: %s" % exc) from exc
 
 
 def analyze_cv(payload: dict) -> dict:
@@ -282,7 +282,7 @@ def analyze_cv(payload: dict) -> dict:
         try:
             return _bedrock_analyze(cv_text, job_offer)
         except Exception as exc:
-            logger.error(f"Bedrock failed, falling back to mock: {exc}")
+            logger.error("Bedrock failed, falling back to mock: %s", exc)
             return _mock_analyze(cv_text, job_offer)
 
     logger.info("USE_BEDROCK is false. Using mock analysis.")
@@ -299,7 +299,7 @@ if app:
             logger.info("Invoking runtime entrypoint")
             return analyze_cv(payload)
         except Exception as exc:
-            logger.error(f"Runtime error: {exc}")
+            logger.error("Runtime error: %s", exc)
             return _error(str(exc))
 
 
