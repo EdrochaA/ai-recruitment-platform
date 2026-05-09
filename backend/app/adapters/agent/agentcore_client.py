@@ -10,7 +10,13 @@ The stub will be replaced with actual AgentCore API calls in production.
 """
 
 import logging
+import json
+import re
+import time
+import uuid
 from typing import Optional
+import boto3
+from botocore.exceptions import ClientError, BotoCoreError
 
 logger = logging.getLogger("agentcore-client")
 
@@ -71,7 +77,7 @@ class AgentCoreClient:
         else:
             logger.info(
                 f"AgentCoreClient initialized for AgentCore runtime. "
-                f"Region: {self.region}, Agent: {self.agent_id}"
+                f"Region: {self.region}, Agent: {self.agent_id}, Model: {self.model_id}"
             )
 
     def invoke_cv_analysis(
@@ -160,35 +166,405 @@ class AgentCoreClient:
         session_id: Optional[str] = None,
         actor_id: Optional[str] = None,
     ) -> dict:
-        """Real invocation against AgentCore runtime.
+        """Real invocation against AgentCore runtime using boto3.
         
-        This method will be implemented when AWS credentials and
-        AgentCore infrastructure are available.
+        This implements actual communication with AWS Bedrock AgentCore runtime.
+        Follows the pattern from cc-swp-blueprint-agent-memory:
         
-        Expected flow (following cc-swp-blueprint-agent-memory pattern):
-        1. Build request payload with cv_text, job_description, session_id, actor_id
-        2. Use boto3 bedrock-agentcore-runtime client to invoke
-        3. Call /invocations endpoint with:
-           - runtime_id/runtime_arn
-           - agent_id
-           - Request body with user message and context
-        4. Parse response and validate required fields
-        5. Return normalized dict
+        Flow:
+        1. Build system prompt asking for CV analysis
+        2. Create session ID if not provided
+        3. Invoke AgentCore runtime via boto3
+        4. Parse and extract JSON from LLM response
+        5. Validate and normalize response structure
+        6. Return structured analysis data
         
         Args:
             cv_text: Extracted CV text
             job_description: Job description
-            session_id: Session identifier (optional)
-            actor_id: Actor/user identifier (optional)
+            session_id: Session identifier (optional, generated if not provided)
+            actor_id: Actor/user identifier (optional, defaults to "analyzer")
             
         Returns:
-            Normalized response dict
+            Normalized response dict:
+            {
+                "skills": list[str],
+                "experience_summary": str,
+                "score": int (0-100),
+                "summary": str
+            }
             
         Raises:
-            NotImplementedError: Until AgentCore integration is complete
+            ValueError: If response validation fails or AgentCore returns error
+            BotoCoreError: If AWS API call fails
         """
-        raise NotImplementedError(
-            "Real AgentCore invocation is not yet implemented. "
-            "Set CV_ANALYZER_PROVIDER=simple to use SimpleCVAnalyzer, "
-            "or configure runtime credentials for AgentCore mode."
+        # Use provided values or generate defaults
+        session_id = session_id or self._generate_session_id()
+        actor_id = actor_id or "cv-analyzer"
+        
+        start_time = time.time()
+        
+        try:
+            logger.info(
+                f"Invoking AgentCore runtime. "
+                f"session_id={session_id}, actor_id={actor_id}, "
+                f"model_id={self.model_id}, cv_text_len={len(cv_text)}, "
+                f"job_desc_len={len(job_description)}"
+            )
+            
+            # Build the analysis prompt
+            prompt = self._build_analysis_prompt(cv_text, job_description)
+            
+            # Prepare payload for AgentCore
+            payload = {
+                "prompt": prompt,
+                "actor_id": actor_id,
+            }
+            
+            # Invoke AgentCore runtime
+            response_data = self._invoke_agentcore_runtime(
+                payload=payload,
+                session_id=session_id,
+            )
+            
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            logger.info(f"AgentCore runtime responded in {elapsed_ms}ms")
+            
+            # Extract and parse the agent's response
+            agent_response = self._extract_agent_response(response_data)
+            
+            # Parse JSON from response
+            parsed_json = self._parse_json_response(agent_response)
+            
+            # Validate and normalize
+            normalized = self._validate_and_normalize_response(parsed_json)
+            
+            logger.info(
+                f"AgentCore analysis completed successfully. "
+                f"score={normalized['score']}, skills={len(normalized['skills'])}"
+            )
+            
+            return normalized
+        
+        except ValueError as e:
+            logger.error(f"AgentCore response validation failed: {e}")
+            raise
+        
+        except (ClientError, BotoCoreError) as e:
+            logger.error(f"AWS API error during AgentCore invocation: {e}")
+            raise ValueError(f"AgentCore API call failed: {e}") from e
+        
+        except Exception as e:
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            logger.error(f"Unexpected error during AgentCore invocation ({elapsed_ms}ms): {e}")
+            raise ValueError(f"AgentCore invocation failed: {e}") from e
+
+    def _generate_session_id(self) -> str:
+        """Generate a session ID for AgentCore invocation."""
+        timestamp = int(time.time() * 1000)
+        unique_id = uuid.uuid4().hex[:8]
+        return f"cv-analysis-{timestamp}-{unique_id}"
+
+    def _build_analysis_prompt(self, cv_text: str, job_description: str) -> str:
+        """Build the prompt to send to AgentCore for CV analysis.
+        
+        The prompt instructs the LLM to analyze the CV and return
+        structured JSON with the required fields.
+        """
+        prompt = f"""Analyze the following CV against the job description and respond with a JSON object.
+
+CANDIDATE'S CV:
+---
+{cv_text}
+---
+
+JOB DESCRIPTION:
+---
+{job_description}
+---
+
+Please analyze this CV against the job requirements and return a JSON object with these exact fields:
+{{
+    "skills": ["skill1", "skill2", ...],
+    "experience_summary": "A brief summary of relevant experience",
+    "score": 0,
+    "summary": "Overall assessment of candidate fit (1-2 sentences)"
+}}
+
+Requirements:
+- skills: List all detected technical and professional skills from the CV (max 10)
+- experience_summary: Extract and summarize relevant professional experience (max 200 chars)
+- score: Rate compatibility 0-100 (0=no fit, 50=partial fit, 100=excellent fit)
+- summary: Provide a concise assessment of the candidate's suitability for the role
+
+Return ONLY the JSON object. No additional text before or after."""
+        
+        return prompt
+
+    def _invoke_agentcore_runtime(self, payload: dict, session_id: str) -> dict:
+        """Invoke the AgentCore runtime via boto3.
+        
+        Uses the bedrock-agentcore-runtime service to send the payload
+        to the configured runtime.
+        
+        Args:
+            payload: Request payload (prompt, actor_id)
+            session_id: Session identifier
+            
+        Returns:
+            Response from AgentCore runtime
+            
+        Raises:
+            ValueError: If runtime_id or runtime_arn not configured
+            ClientError: If AWS API call fails
+        """
+        if not self.runtime_arn and not self.runtime_id:
+            raise ValueError(
+                "AgentCore runtime not configured. "
+                "Provide either runtime_arn or runtime_id."
+            )
+        
+        # Use runtime_arn if available, otherwise construct from runtime_id
+        runtime_identifier = self.runtime_arn or self.runtime_id
+        
+        try:
+            # Initialize bedrock-agentcore-runtime client
+            client = boto3.client(
+                "bedrock-agentcore-runtime",
+                region_name=self.region,
+            )
+            
+            logger.debug(
+                f"Invoking bedrock-agentcore-runtime. "
+                f"runtime={runtime_identifier}, agent_id={self.agent_id}"
+            )
+            
+            # Build the request
+            invoke_kwargs = {
+                "runtimeIdentifier": runtime_identifier,
+                "agentAliasId": "DEFAULT",  # Use default qualifier
+                "sessionId": session_id,
+                "inputText": payload["prompt"],
+            }
+
+            # Add session state if actor_id provided
+            if payload.get("actor_id"):
+                invoke_kwargs["sessionState"] = {
+                    "sessionAttributes": {
+                        "actor_id": payload["actor_id"],
+                    }
+                }
+
+            # Send request to AgentCore runtime
+            response = client.invoke(**invoke_kwargs)
+            
+            logger.debug(f"AgentCore runtime response status: {response.get('ResponseMetadata', {}).get('HTTPStatusCode')}")
+            
+            return response
+        
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            error_msg = e.response.get("Error", {}).get("Message", str(e))
+            logger.error(f"AWS ClientError [{error_code}]: {error_msg}")
+            raise
+        
+        except BotoCoreError as e:
+            logger.error(f"AWS BotoCoreError: {e}")
+            raise
+
+    def _extract_agent_response(self, response_data: dict) -> str:
+        """Extract the text response from AgentCore runtime response.
+        
+        AgentCore may return response in different formats depending on streaming
+        and response structure. This method extracts the actual agent output text.
+        
+        Args:
+            response_data: Response from bedrock-agentcore-runtime invoke call
+            
+        Returns:
+            The agent's response text
+            
+        Raises:
+            ValueError: If response structure is unexpected
+        """
+        try:
+            # Try to get the output from different possible locations
+            if "output" in response_data:
+                return response_data["output"]
+            
+            if "text" in response_data:
+                return response_data["text"]
+            
+            if "messages" in response_data and isinstance(response_data["messages"], list):
+                if response_data["messages"]:
+                    msg = response_data["messages"][-1]
+                    if isinstance(msg, dict) and "content" in msg:
+                        return msg["content"]
+            
+            # If using streaming, concatenate chunks
+            if "body" in response_data:
+                # This is a streaming response from invoke()
+                body = response_data["body"]
+                if hasattr(body, "read"):
+                    content = body.read().decode("utf-8")
+                    content = content.strip()
+                    if content.startswith("{"):
+                        try:
+                            parsed = json.loads(content)
+                            if isinstance(parsed, dict):
+                                if "output" in parsed:
+                                    return parsed["output"]
+                                if "outputText" in parsed:
+                                    return parsed["outputText"]
+                                if "text" in parsed:
+                                    return parsed["text"]
+                        except json.JSONDecodeError:
+                            pass
+                    return content
+            
+            logger.error(f"Unexpected AgentCore response structure: {list(response_data.keys())}")
+            raise ValueError("AgentCore response has unexpected structure. Cannot extract agent output.")
+        
+        except Exception as e:
+            logger.error(f"Error extracting agent response: {e}")
+            raise ValueError(f"Failed to extract agent response: {e}") from e
+
+    def _parse_json_response(self, response_text: str) -> dict:
+        """Extract and parse JSON from agent response.
+        
+        The LLM may return:
+        - Pure JSON object
+        - JSON wrapped in markdown code blocks
+        - JSON embedded in text
+        
+        This method attempts to robustly extract and parse the JSON.
+        
+        Args:
+            response_text: Raw response text from agent
+            
+        Returns:
+            Parsed JSON as dictionary
+            
+        Raises:
+            ValueError: If no valid JSON can be extracted or parsed
+        """
+        if not response_text or not isinstance(response_text, str):
+            raise ValueError("Response text is empty or not a string")
+        
+        response_text = response_text.strip()
+        
+        # Try direct JSON parse first
+        try:
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            logger.debug("Direct JSON parse failed, attempting extraction...")
+        
+        # Try to extract JSON from markdown code blocks
+        markdown_patterns = [
+            r"```json\s*(\{.*?\})\s*```",
+            r"```\s*(\{.*?\})\s*```",
+        ]
+        
+        for pattern in markdown_patterns:
+            match = re.search(pattern, response_text, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError:
+                    logger.debug(f"Failed to parse extracted JSON: {json_str[:100]}")
+        
+        # Try to find JSON object in text using braces
+        brace_start = response_text.find("{")
+        brace_end = response_text.rfind("}")
+        
+        if brace_start != -1 and brace_end != -1 and brace_end > brace_start:
+            json_candidate = response_text[brace_start:brace_end + 1]
+            try:
+                return json.loads(json_candidate)
+            except json.JSONDecodeError:
+                logger.debug(f"Failed to parse JSON from braces: {json_candidate[:100]}")
+        
+        # If all else fails, raise error with context
+        logger.error(f"Could not parse JSON from response: {response_text[:200]}")
+        raise ValueError(
+            f"AgentCore response does not contain valid JSON. "
+            f"Response start: {response_text[:100]}"
         )
+
+    def _validate_and_normalize_response(self, parsed_json: dict) -> dict:
+        """Validate that response contains required fields and normalize format.
+        
+        Ensures the response has all required fields with correct types
+        and reasonable values.
+        
+        Args:
+            parsed_json: Parsed JSON response from agent
+            
+        Returns:
+            Normalized response dict with validated fields
+            
+        Raises:
+            ValueError: If required fields missing or invalid
+        """
+        required_fields = {"skills", "experience_summary", "score", "summary"}
+        
+        # Check for required fields
+        missing_fields = required_fields - set(parsed_json.keys())
+        if missing_fields:
+            raise ValueError(
+                f"AgentCore response missing required fields: {missing_fields}. "
+                f"Response: {parsed_json}"
+            )
+        
+        # Normalize and validate each field
+        try:
+            # skills: should be list of strings
+            skills = parsed_json.get("skills", [])
+            if isinstance(skills, str):
+                # Handle case where skills is comma-separated string
+                skills = [s.strip() for s in skills.split(",")]
+            if not isinstance(skills, list):
+                raise ValueError(f"skills must be list, got {type(skills)}")
+            skills = [str(s).strip() for s in skills if s]
+            
+            # experience_summary: should be string
+            experience_summary = str(parsed_json.get("experience_summary", "")).strip()
+            if not experience_summary:
+                experience_summary = "No experience summary provided"
+            
+            # score: should be integer 0-100
+            score = parsed_json.get("score")
+            if isinstance(score, str):
+                score = score.strip()
+                # Try to extract number from string
+                score_match = re.search(r"\d+", score)
+                if score_match:
+                    score = int(score_match.group())
+                else:
+                    score = 50  # Default fallback
+            
+            score = int(score)
+            if not 0 <= score <= 100:
+                logger.warning(f"Score {score} outside 0-100 range, clamping")
+                score = max(0, min(100, score))
+            
+            # summary: should be string
+            summary = str(parsed_json.get("summary", "")).strip()
+            if not summary:
+                summary = "Analysis completed. No summary provided."
+            
+            # Return normalized dict
+            normalized = {
+                "skills": skills,
+                "experience_summary": experience_summary,
+                "score": score,
+                "summary": summary,
+            }
+            
+            logger.debug(f"Normalized response: {normalized}")
+            return normalized
+        
+        except Exception as e:
+            logger.error(f"Error normalizing response: {e}")
+            raise ValueError(f"Failed to normalize AgentCore response: {e}") from e

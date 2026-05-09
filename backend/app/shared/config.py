@@ -8,6 +8,10 @@ without modifying code.
 Environment variables:
 - CV_ANALYZER_PROVIDER: "simple" (default) or "agentcore"
 - AWS_REGION: AWS region (default: "eu-west-1")
+- AWS_PROFILE: AWS profile name (optional)
+- AWS_ACCESS_KEY_ID: AWS access key (optional)
+- AWS_SECRET_ACCESS_KEY: AWS secret key (optional)
+- AWS_SESSION_TOKEN: AWS session token (optional)
 - AGENTCORE_RUNTIME_ID: AgentCore Runtime ID (optional)
 - AGENTCORE_RUNTIME_ARN: AgentCore Runtime ARN (optional)
 - AGENTCORE_AGENT_ID: Strands Agent ID (optional, default: "cv-analyzer-agent")
@@ -37,6 +41,10 @@ class CVAnalyzerConfig:
         
         # AWS configuration
         self.aws_region = os.getenv("AWS_REGION", "eu-west-1")
+        self.aws_profile = os.getenv("AWS_PROFILE")
+        self.aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+        self.aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+        self.aws_session_token = os.getenv("AWS_SESSION_TOKEN")
         self.bedrock_model_id = os.getenv(
             "BEDROCK_MODEL_ID",
             "eu.anthropic.claude-sonnet-4-20250514-v1:0"
