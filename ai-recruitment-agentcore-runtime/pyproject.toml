@@ -1,0 +1,12 @@
+[project]
+name = "ai-recruitment-agentcore-runtime"
+version = "0.1.0"
+description = "Minimal AgentCore Runtime for CV analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "bedrock-agentcore",
+]
+
+[tool.uv]
