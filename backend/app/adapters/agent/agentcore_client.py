@@ -274,42 +274,6 @@ class AgentCoreClient:
         unique_id = uuid.uuid4().hex[:8]
         return f"cv-analysis-{timestamp}-{unique_id}"
 
-    def _build_analysis_prompt(self, cv_text: str, job_description: str) -> str:
-        """Build the prompt to send to AgentCore for CV analysis.
-        
-        The prompt instructs the LLM to analyze the CV and return
-        structured JSON with the required fields.
-        """
-        prompt = f"""Analyze the following CV against the job description and respond with a JSON object.
-
-CANDIDATE'S CV:
----
-{cv_text}
----
-
-JOB DESCRIPTION:
----
-{job_description}
----
-
-Please analyze this CV against the job requirements and return a JSON object with these exact fields:
-{{
-    "skills": ["skill1", "skill2", ...],
-    "experience_summary": "A brief summary of relevant experience",
-    "score": 0,
-    "summary": "Overall assessment of candidate fit (1-2 sentences)"
-}}
-
-Requirements:
-- skills: List all detected technical and professional skills from the CV (max 10)
-- experience_summary: Extract and summarize relevant professional experience (max 200 chars)
-- score: Rate compatibility 0-100 (0=no fit, 50=partial fit, 100=excellent fit)
-- summary: Provide a concise assessment of the candidate's suitability for the role
-
-Return ONLY the JSON object. No additional text before or after."""
-        
-        return prompt
-
     def _invoke_agentcore_runtime(self, payload: dict, session_id: str) -> dict:
         """Invoke the AgentCore runtime via boto3.
         
