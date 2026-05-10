@@ -212,22 +212,17 @@ class AgentCoreClient:
         
         try:
             logger.info(
-                "Invoking AgentCore runtime. session_id=%s, actor_id=%s, model_id=%s, "
-                "cv_text_len=%s, job_desc_len=%s",
+                "Invoking AgentCore runtime. session_id=%s, actor_id=%s, cv_text_len=%s, job_desc_len=%s",
                 session_id,
                 actor_id,
-                self.model_id,
                 len(cv_text),
                 len(job_description),
             )
             
-            # Build the analysis prompt
-            prompt = self._build_analysis_prompt(cv_text, job_description)
-            
             # Prepare payload for AgentCore
             payload = {
-                "prompt": prompt,
-                "actor_id": actor_id,
+                "cv_text": cv_text,
+                "job_offer": job_description,
             }
             
             # Invoke AgentCore runtime
@@ -375,8 +370,8 @@ Return ONLY the JSON object. No additional text before or after."""
             )
             
             logger.debug(
-                "AgentCore runtime response status: "
-                f"{response.get('ResponseMetadata', {}).get('HTTPStatusCode')}"
+                "AgentCore runtime response status: %s",
+                response.get("ResponseMetadata", {}).get("HTTPStatusCode"),
             )
             if not response:
                 raise ValueError("Empty response from AgentCore runtime")

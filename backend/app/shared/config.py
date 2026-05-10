@@ -87,30 +87,18 @@ class CVAnalyzerConfig:
         - Same code path for development and production
         """
         if self.provider == CVAnalyzerProvider.AGENTCORE:
-            # AgentCore mode requires at least runtime_id or runtime_arn
-            if not (self.agentcore_runtime_id or self.agentcore_runtime_arn):
-                logger.warning(
-                    "CV_ANALYZER_PROVIDER=agentcore but no AGENTCORE_RUNTIME_ID or "
-                    "AGENTCORE_RUNTIME_ARN provided. Auto-falling back to SimpleCVAnalyzer. "
-                    "(Set AGENTCORE_RUNTIME_ID for production AgentCore deployment)"
+            if not self.agentcore_runtime_arn:
+                raise ValueError(
+                    "AGENTCORE_RUNTIME_ARN is required when CV_ANALYZER_PROVIDER=agentcore"
                 )
-                # Auto-fallback to SimpleCVAnalyzer
-                self.provider = CVAnalyzerProvider.SIMPLE
-            else:
-                if self.agentcore_runtime_arn is None and self.agentcore_runtime_id:
-                    if not self.agentcore_runtime_id.startswith("arn:"):
-                        logger.warning(
-                            "AGENTCORE_RUNTIME_ARN is not set and AGENTCORE_RUNTIME_ID is not an ARN. "
-                            "InvokeAgentRuntime requires an ARN; set AGENTCORE_RUNTIME_ARN for production."
-                        )
-                if not self.aws_region:
-                    raise ValueError("AWS_REGION must be set when CV_ANALYZER_PROVIDER=agentcore")
-                logger.info(
-                    f"AgentCore configuration: "
-                    f"runtime_id={self.agentcore_runtime_id}, "
-                    f"agent_id={self.agentcore_agent_id}, "
-                    f"region={self.aws_region}"
-                )
+            if not self.aws_region:
+                raise ValueError("AWS_REGION must be set when CV_ANALYZER_PROVIDER=agentcore")
+            logger.info(
+                "AgentCore configuration: runtime_arn=%s, agent_id=%s, region=%s",
+                self.agentcore_runtime_arn,
+                self.agentcore_agent_id,
+                self.aws_region,
+            )
         
         if self.provider == CVAnalyzerProvider.SIMPLE:
             logger.info("Using SimpleCVAnalyzer (local, no external dependencies)")
