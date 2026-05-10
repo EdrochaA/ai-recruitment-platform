@@ -84,8 +84,8 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
         self.agent_id = agent_id
         
         logger.info(
-            f"AgentCoreCVAnalyzer initialized. "
-            f"Mode: {'mock' if self.client.is_mock_mode else 'production'}"
+            "AgentCoreCVAnalyzer initialized. Mode: %s",
+            "mock" if self.client.is_mock_mode else "production",
         )
 
     def analyze(
@@ -114,7 +114,7 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
             ValueError: If AgentCore response is invalid or missing required fields
         """
         try:
-            logger.info(f"Invoking AgentCore analysis for CV ({len(cv_text)} chars)")
+            logger.info("Invoking AgentCore analysis for CV (%s chars)", len(cv_text))
             
             # Call AgentCore via the client
             response = self.client.invoke_cv_analysis(
@@ -131,20 +131,21 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
             result = self._transform_response(response)
             
             logger.info(
-                f"AgentCore analysis complete: score={result.score}, "
-                f"skills={len(result.skills)}"
+                "AgentCore analysis complete: score=%s, skills=%s",
+                result.score,
+                len(result.skills),
             )
             
             return result
         
         except ValueError as e:
             # Validation or transformation error
-            logger.error(f"AgentCore response validation failed: {e}")
+            logger.error("AgentCore response validation failed: %s", e)
             raise
         
         except Exception as e:
             # Unexpected error
-            logger.error(f"Unexpected error during AgentCore analysis: {e}")
+            logger.error("Unexpected error during AgentCore analysis: %s", e)
             raise ValueError(f"AgentCore analysis failed: {e}")
 
     def _validate_response(self, response: dict) -> None:

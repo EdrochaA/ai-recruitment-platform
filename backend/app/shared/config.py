@@ -97,6 +97,14 @@ class CVAnalyzerConfig:
                 # Auto-fallback to SimpleCVAnalyzer
                 self.provider = CVAnalyzerProvider.SIMPLE
             else:
+                if self.agentcore_runtime_arn is None and self.agentcore_runtime_id:
+                    if not self.agentcore_runtime_id.startswith("arn:"):
+                        logger.warning(
+                            "AGENTCORE_RUNTIME_ARN is not set and AGENTCORE_RUNTIME_ID is not an ARN. "
+                            "InvokeAgentRuntime requires an ARN; set AGENTCORE_RUNTIME_ARN for production."
+                        )
+                if not self.aws_region:
+                    raise ValueError("AWS_REGION must be set when CV_ANALYZER_PROVIDER=agentcore")
                 logger.info(
                     f"AgentCore configuration: "
                     f"runtime_id={self.agentcore_runtime_id}, "

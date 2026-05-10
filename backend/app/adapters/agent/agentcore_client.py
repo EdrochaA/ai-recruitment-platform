@@ -11,11 +11,13 @@ The stub will be replaced with actual AgentCore API calls in production.
 
 import logging
 import json
+import os
 import re
 import time
 import uuid
 from typing import Optional
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
 
 logger = logging.getLogger("agentcore-client")
@@ -76,8 +78,11 @@ class AgentCoreClient:
             )
         else:
             logger.info(
-                f"AgentCoreClient initialized for AgentCore runtime. "
-                f"Region: {self.region}, Agent: {self.agent_id}, Model: {self.model_id}"
+                "AgentCoreClient initialized for AgentCore runtime. "
+                "Region: %s, Agent: %s, Model: %s",
+                self.region,
+                self.agent_id,
+                self.model_id,
             )
 
     def invoke_cv_analysis(
@@ -112,6 +117,7 @@ class AgentCoreClient:
         """
         try:
             if self.is_mock_mode:
+                logger.info("AgentCore provider is mock. Using mock analyzer.")
                 return self._mock_invoke(cv_text, job_description)
             else:
                 # Production: Call real AgentCore runtime
@@ -119,7 +125,7 @@ class AgentCoreClient:
                 return self._real_invoke(cv_text, job_description, session_id, actor_id)
         
         except Exception as e:
-            logger.error(f"Failed to invoke AgentCore CV analysis: {e}")
+            logger.error("Failed to invoke AgentCore CV analysis: %s", e)
             raise ValueError(f"AgentCore invocation failed: {e}")
 
     def _mock_invoke(self, cv_text: str, job_description: str) -> dict:
@@ -206,10 +212,13 @@ class AgentCoreClient:
         
         try:
             logger.info(
-                f"Invoking AgentCore runtime. "
-                f"session_id={session_id}, actor_id={actor_id}, "
-                f"model_id={self.model_id}, cv_text_len={len(cv_text)}, "
-                f"job_desc_len={len(job_description)}"
+                "Invoking AgentCore runtime. session_id=%s, actor_id=%s, model_id=%s, "
+                "cv_text_len=%s, job_desc_len=%s",
+                session_id,
+                actor_id,
+                self.model_id,
+                len(cv_text),
+                len(job_description),
             )
             
             # Build the analysis prompt
@@ -228,7 +237,7 @@ class AgentCoreClient:
             )
             
             elapsed_ms = int((time.time() - start_time) * 1000)
-            logger.info(f"AgentCore runtime responded in {elapsed_ms}ms")
+            logger.info("AgentCore runtime responded in %sms", elapsed_ms)
             
             # Extract and parse the agent's response
             agent_response = self._extract_agent_response(response_data)
@@ -240,23 +249,28 @@ class AgentCoreClient:
             normalized = self._validate_and_normalize_response(parsed_json)
             
             logger.info(
-                f"AgentCore analysis completed successfully. "
-                f"score={normalized['score']}, skills={len(normalized['skills'])}"
+                "AgentCore analysis completed successfully. score=%s, skills=%s",
+                normalized["score"],
+                len(normalized["skills"]),
             )
             
             return normalized
         
         except ValueError as e:
-            logger.error(f"AgentCore response validation failed: {e}")
+            logger.error("AgentCore response validation failed: %s", e)
             raise
         
         except (ClientError, BotoCoreError) as e:
-            logger.error(f"AWS API error during AgentCore invocation: {e}")
+            logger.error("AWS API error during AgentCore invocation: %s", e)
             raise ValueError(f"AgentCore API call failed: {e}") from e
         
         except Exception as e:
             elapsed_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"Unexpected error during AgentCore invocation ({elapsed_ms}ms): {e}")
+            logger.error(
+                "Unexpected error during AgentCore invocation (%sms): %s",
+                elapsed_ms,
+                e,
+            )
             raise ValueError(f"AgentCore invocation failed: {e}") from e
 
     def _generate_session_id(self) -> str:
@@ -333,14 +347,21 @@ Return ONLY the JSON object. No additional text before or after."""
             )
         
         try:
+            timeout_seconds = int(
+                os.getenv("AGENTCORE_RUNTIME_TIMEOUT_SECONDS", "30")
+            )
+            config = Config(read_timeout=timeout_seconds, connect_timeout=10)
             # Initialize bedrock-agentcore client (InvokeAgentRuntime)
             client = boto3.client(
                 "bedrock-agentcore",
                 region_name=self.region,
+                config=config,
             )
             
-            logger.debug(
-                f"Invoking bedrock-agentcore. runtime={runtime_identifier}"
+            logger.info(
+                "Invoking bedrock-agentcore. runtime_arn=%s, session_id=%s",
+                runtime_identifier,
+                session_id,
             )
             
             # Build the request payload (binary)
@@ -357,17 +378,19 @@ Return ONLY the JSON object. No additional text before or after."""
                 "AgentCore runtime response status: "
                 f"{response.get('ResponseMetadata', {}).get('HTTPStatusCode')}"
             )
+            if not response:
+                raise ValueError("Empty response from AgentCore runtime")
             
             return response
         
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             error_msg = e.response.get("Error", {}).get("Message", str(e))
-            logger.error(f"AWS ClientError [{error_code}]: {error_msg}")
+            logger.error("AWS ClientError [%s]: %s", error_code, error_msg)
             raise
         
         except BotoCoreError as e:
-            logger.error(f"AWS BotoCoreError: {e}")
+            logger.error("AWS BotoCoreError: %s", e)
             raise
 
     def _extract_agent_response(self, response_data: dict) -> str:
@@ -427,11 +450,14 @@ Return ONLY the JSON object. No additional text before or after."""
                     if isinstance(msg, dict) and "content" in msg:
                         return msg["content"]
             
-            logger.error(f"Unexpected AgentCore response structure: {list(response_data.keys())}")
+            logger.error(
+                "Unexpected AgentCore response structure: %s",
+                list(response_data.keys()),
+            )
             raise ValueError("AgentCore response has unexpected structure. Cannot extract agent output.")
         
         except Exception as e:
-            logger.error(f"Error extracting agent response: {e}")
+            logger.error("Error extracting agent response: %s", e)
             raise ValueError(f"Failed to extract agent response: {e}") from e
 
     def _parse_json_response(self, response_text: str) -> dict:
@@ -477,7 +503,7 @@ Return ONLY the JSON object. No additional text before or after."""
                 try:
                     return json.loads(json_str)
                 except json.JSONDecodeError:
-                    logger.debug(f"Failed to parse extracted JSON: {json_str[:100]}")
+                    logger.debug("Failed to parse extracted JSON: %s", json_str[:100])
         
         # Try to find JSON object in text using braces
         brace_start = response_text.find("{")
@@ -488,10 +514,10 @@ Return ONLY the JSON object. No additional text before or after."""
             try:
                 return json.loads(json_candidate)
             except json.JSONDecodeError:
-                logger.debug(f"Failed to parse JSON from braces: {json_candidate[:100]}")
+                logger.debug("Failed to parse JSON from braces: %s", json_candidate[:100])
         
         # If all else fails, raise error with context
-        logger.error(f"Could not parse JSON from response: {response_text[:200]}")
+        logger.error("Could not parse JSON from response: %s", response_text[:200])
         raise ValueError(
             f"AgentCore response does not contain valid JSON. "
             f"Response start: {response_text[:100]}"
@@ -512,7 +538,7 @@ Return ONLY the JSON object. No additional text before or after."""
         Raises:
             ValueError: If required fields missing or invalid
         """
-        required_fields = {"skills", "experience_summary", "score", "summary"}
+        required_fields = {"skills", "score", "summary"}
         
         # Check for required fields
         missing_fields = required_fields - set(parsed_json.keys())
@@ -533,8 +559,10 @@ Return ONLY the JSON object. No additional text before or after."""
                 raise ValueError(f"skills must be list, got {type(skills)}")
             skills = [str(s).strip() for s in skills if s]
             
-            # experience_summary: should be string
-            experience_summary = str(parsed_json.get("experience_summary", "")).strip()
+            # experience_summary/experience: should be string
+            experience_summary = str(
+                parsed_json.get("experience_summary", parsed_json.get("experience", ""))
+            ).strip()
             if not experience_summary:
                 experience_summary = "No experience summary provided"
             
@@ -551,7 +579,7 @@ Return ONLY the JSON object. No additional text before or after."""
             
             score = int(score)
             if not 0 <= score <= 100:
-                logger.warning(f"Score {score} outside 0-100 range, clamping")
+                logger.warning("Score %s outside 0-100 range, clamping", score)
                 score = max(0, min(100, score))
             
             # summary: should be string
@@ -567,9 +595,9 @@ Return ONLY the JSON object. No additional text before or after."""
                 "summary": summary,
             }
             
-            logger.debug(f"Normalized response: {normalized}")
+            logger.debug("Normalized response: %s", normalized)
             return normalized
         
         except Exception as e:
-            logger.error(f"Error normalizing response: {e}")
+            logger.error("Error normalizing response: %s", e)
             raise ValueError(f"Failed to normalize AgentCore response: {e}") from e
