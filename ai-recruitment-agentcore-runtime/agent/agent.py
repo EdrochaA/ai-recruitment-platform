@@ -11,22 +11,22 @@ from botocore.exceptions import BotoCoreError, ClientError
 logger = logging.getLogger("agentcore-runtime")
 
 
-def _bedrock_enabled() -> bool:
+def bedrock_enabled() -> bool:
     return os.getenv("USE_BEDROCK", "false").lower() == "true"
 
 
-def _read_bedrock_config() -> tuple[str | None, str | None]:
+def read_bedrock_config() -> tuple[str | None, str | None]:
     return os.getenv("AWS_REGION"), os.getenv("BEDROCK_MODEL_ID")
 
 
-def _new_bedrock_client(region: str):
+def new_bedrock_client(region: str):
     read_timeout = int(os.getenv("BEDROCK_READ_TIMEOUT", "60"))
     connect_timeout = int(os.getenv("BEDROCK_CONNECT_TIMEOUT", "10"))
     config = Config(read_timeout=read_timeout, connect_timeout=connect_timeout)
     return boto3.client("bedrock-runtime", region_name=region, config=config)
 
 
-def _normalize_job_offer(job_offer: Any) -> str | None:
+def normalize_job_offer(job_offer: Any) -> str | None:
     if job_offer is None:
         return None
 
@@ -58,7 +58,7 @@ def _normalize_job_offer(job_offer: Any) -> str | None:
     raise ValueError("'job_offer' must be a string or object when provided")
 
 
-def _mock_analysis(cv_text: str, job_offer_text: str | None) -> dict:
+def mock_analysis(cv_text: str, job_offer_text: str | None) -> dict:
     skills_pool = [
         "python",
         "fastapi",
@@ -98,7 +98,7 @@ def _mock_analysis(cv_text: str, job_offer_text: str | None) -> dict:
     }
 
 
-def _build_system_prompt(cv_text: str, job_offer_text: str | None) -> str:
+def build_system_prompt(cv_text: str, job_offer_text: str | None) -> str:
     offer_text = job_offer_text or "No job offer provided."
     return (
         "You are a recruitment assistant. Analyze the CV against the job offer and respond with ONLY a JSON object.\n\n"
@@ -121,7 +121,7 @@ def _build_system_prompt(cv_text: str, job_offer_text: str | None) -> str:
     )
 
 
-def _extract_json_payload(text: str) -> dict:
+def extract_json_payload(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -139,7 +139,7 @@ def _extract_json_payload(text: str) -> dict:
     raise ValueError("No valid JSON found in LLM response")
 
 
-def _normalize_output(payload: dict) -> dict:
+def normalize_output(payload: dict) -> dict:
     score = payload.get("score")
     if isinstance(score, str):
         match = re.search(r"\d+", score)
@@ -166,15 +166,15 @@ def _normalize_output(payload: dict) -> dict:
     }
 
 
-def _invoke_bedrock(cv_text: str, job_offer_text: str | None) -> dict:
-    region, model_id = _read_bedrock_config()
+def invoke_bedrock(cv_text: str, job_offer_text: str | None) -> dict:
+    region, model_id = read_bedrock_config()
     if not region or not model_id:
         raise ValueError("AWS_REGION and BEDROCK_MODEL_ID must be set for Bedrock")
 
-    prompt = _build_system_prompt(cv_text, job_offer_text)
+    prompt = build_system_prompt(cv_text, job_offer_text)
     max_tokens = int(os.getenv("BEDROCK_MAX_TOKENS", "700"))
 
-    client = _new_bedrock_client(region)
+    client = new_bedrock_client(region)
 
     try:
         logger.info("Bedrock enabled. model_id=%s", model_id)
@@ -216,8 +216,8 @@ def _invoke_bedrock(cv_text: str, job_offer_text: str | None) -> dict:
         if not llm_text:
             raise ValueError("Empty LLM response text")
 
-        extracted = _extract_json_payload(llm_text)
-        return _normalize_output(extracted)
+        extracted = extract_json_payload(llm_text)
+        return normalize_output(extracted)
 
     except (ClientError, BotoCoreError) as exc:
         raise RuntimeError("Bedrock error: %s" % exc) from exc
@@ -226,18 +226,18 @@ def _invoke_bedrock(cv_text: str, job_offer_text: str | None) -> dict:
 
 
 def analyze_cv(cv_text: str, job_offer: str | dict | None = None) -> dict:
-    job_offer_text = _normalize_job_offer(job_offer)
+    job_offer_text = normalize_job_offer(job_offer)
     if job_offer is not None and job_offer_text is None:
         raise ValueError(
             "'job_offer' must include at least one of: title, description, requirements"
         )
 
-    if _bedrock_enabled():
+    if bedrock_enabled():
         try:
-            return _invoke_bedrock(cv_text, job_offer_text)
+            return invoke_bedrock(cv_text, job_offer_text)
         except Exception as exc:
             logger.error("Bedrock failed, falling back to mock: %s", exc)
-            return _mock_analysis(cv_text, job_offer_text)
+            return mock_analysis(cv_text, job_offer_text)
 
     logger.info("USE_BEDROCK is false. Using mock analysis.")
-    return _mock_analysis(cv_text, job_offer_text)
+    return mock_analysis(cv_text, job_offer_text)

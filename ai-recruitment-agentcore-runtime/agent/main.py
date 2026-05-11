@@ -1,29 +1,26 @@
 import logging
 import os
+import uuid
 from typing import Any
 
-try:
-    from bedrock_agentcore.runtime import BedrockAgentCoreApp
-except Exception:
-    BedrockAgentCoreApp = None
-
-from agent.agent import analyze_cv, _normalize_job_offer
+from bedrock_agentcore.runtime import BedrockAgentCoreApp
+from agent.agent import analyze_cv, normalize_job_offer
 
 
 logging.basicConfig(
     format="%(levelname)s | %(message)s",
 )
 logger = logging.getLogger("agentcore-runtime")
-logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO))
+logger.setLevel(logging.INFO)
+
+app = BedrockAgentCoreApp()
+
+REGION = os.getenv("AWS_REGION", "eu-west-1")
 
 
-def _error(message: str, status: int = 400) -> dict:
-    return {
-        "error": {
-            "message": message,
-            "status": status,
-        }
-    }
+def _get_session_id(context) -> str:
+    session_id = getattr(context, "session_id", None)
+    return session_id or f"sandbox-session-{uuid.uuid4().hex}"
 
 
 def _validate_request(payload: Any) -> dict:
@@ -38,7 +35,7 @@ def _validate_request(payload: Any) -> dict:
     if job_offer is None:
         job_offer = payload.get("job_description")
 
-    job_offer_text = _normalize_job_offer(job_offer)
+    job_offer_text = normalize_job_offer(job_offer)
     if job_offer is not None and job_offer_text is None:
         raise ValueError(
             "'job_offer' must include at least one of: title, description, requirements"
@@ -50,30 +47,30 @@ def _validate_request(payload: Any) -> dict:
     }
 
 
-app = BedrockAgentCoreApp() if BedrockAgentCoreApp else None
+@app.entrypoint
+async def invoke_agent(payload, context=None):
+    """
+    Main entrypoint for the CV Analysis Runtime.
 
+    Expected payload:
+        {
+            "cv_text": "...",
+            "job_offer": "..."  # or object with title/description/requirements
+        }
+    """
+    logger.info("Received payload: %s", payload)
+    session_id = _get_session_id(context)
+    logger.info("Context session_id: %s", session_id)
 
-if app:
-    @app.entrypoint
-    async def invoke_agent(payload, context=None):
-        try:
-            logger.info("Invoking runtime entrypoint")
-            validated = _validate_request(payload)
-            result = analyze_cv(validated["cv_text"], validated["job_offer"])
-            return result
-        except Exception as exc:
-            logger.error("Runtime error: %s", exc)
-            return _error(str(exc))
-
-
-def main() -> None:
-    if app is None:
-        logger.error("BedrockAgentCoreApp is not available. Runtime cannot start.")
-        return
-
-    logger.info("Starting Bedrock AgentCore runtime")
-    app.run()
+    try:
+        validated = _validate_request(payload)
+        result = analyze_cv(validated["cv_text"], validated["job_offer"])
+        return result
+    except Exception as exc:
+        error_msg = f"Runtime error: {exc}"
+        logger.error(error_msg)
+        return {"error": {"message": error_msg, "status": 400}}
 
 
 if __name__ == "__main__":
-    main()
+    app.run()
