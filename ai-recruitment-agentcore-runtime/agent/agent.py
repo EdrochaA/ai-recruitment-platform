@@ -8,45 +8,25 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-try:
-    from bedrock_agentcore.runtime import BedrockAgentCoreApp
-except Exception:
-    BedrockAgentCoreApp = None
-
-
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
-    format="%(levelname)s | %(message)s",
-)
 logger = logging.getLogger("agentcore-runtime")
 
 
-def _error(message: str, status: int = 400) -> dict:
-    return {
-        "error": {
-            "message": message,
-            "status": status,
-        }
-    }
-
-
-def _is_bedrock_enabled() -> bool:
+def _bedrock_enabled() -> bool:
     return os.getenv("USE_BEDROCK", "false").lower() == "true"
 
 
-def _get_bedrock_config() -> tuple[str | None, str | None]:
+def _read_bedrock_config() -> tuple[str | None, str | None]:
     return os.getenv("AWS_REGION"), os.getenv("BEDROCK_MODEL_ID")
 
 
-def _create_bedrock_client(region: str):
-    # Keep config minimal but allow safe timeouts via env
+def _new_bedrock_client(region: str):
     read_timeout = int(os.getenv("BEDROCK_READ_TIMEOUT", "60"))
     connect_timeout = int(os.getenv("BEDROCK_CONNECT_TIMEOUT", "10"))
     config = Config(read_timeout=read_timeout, connect_timeout=connect_timeout)
     return boto3.client("bedrock-runtime", region_name=region, config=config)
 
 
-def _job_offer_to_text(job_offer: Any) -> str | None:
+def _normalize_job_offer(job_offer: Any) -> str | None:
     if job_offer is None:
         return None
 
@@ -78,31 +58,7 @@ def _job_offer_to_text(job_offer: Any) -> str | None:
     raise ValueError("'job_offer' must be a string or object when provided")
 
 
-def _validate_payload(payload: Any) -> dict:
-    if not isinstance(payload, dict):
-        raise ValueError("Payload must be a JSON object")
-
-    cv_text = payload.get("cv_text")
-    if not isinstance(cv_text, str) or not cv_text.strip():
-        raise ValueError("'cv_text' is required and must be a non-empty string")
-
-    job_offer = payload.get("job_offer")
-    if job_offer is None:
-        job_offer = payload.get("job_description")
-
-    job_offer_text = _job_offer_to_text(job_offer)
-    if job_offer is not None and job_offer_text is None:
-        raise ValueError(
-            "'job_offer' must include at least one of: title, description, requirements"
-        )
-
-    return {
-        "cv_text": cv_text.strip(),
-        "job_offer": job_offer_text,
-    }
-
-
-def _mock_analyze(cv_text: str, job_offer: str | None) -> dict:
+def _mock_analysis(cv_text: str, job_offer_text: str | None) -> dict:
     skills_pool = [
         "python",
         "fastapi",
@@ -119,7 +75,7 @@ def _mock_analyze(cv_text: str, job_offer: str | None) -> dict:
     ]
 
     cv_lower = cv_text.lower()
-    job_lower = job_offer.lower() if job_offer else ""
+    job_lower = job_offer_text.lower() if job_offer_text else ""
 
     detected_skills = [s for s in skills_pool if s in cv_lower]
     required_skills = [s for s in skills_pool if s in job_lower]
@@ -131,21 +87,19 @@ def _mock_analyze(cv_text: str, job_offer: str | None) -> dict:
         score = min(50, len(detected_skills) * 5)
 
     experience = "Mock analysis: relevant experience detected"
-    summary = "Mock analysis completed for CV" \
-        + (" against job offer" if job_offer else "")
+    summary = "Mock analysis completed for CV" + (" against job offer" if job_offer_text else "")
 
     return {
         "score": min(100, score + 10),
         "summary": summary,
         "skills": detected_skills,
         "experience": experience,
-        # Keep compatibility with backend expectations
         "experience_summary": experience,
     }
 
 
-def _build_prompt(cv_text: str, job_offer: str | None) -> str:
-    offer_text = job_offer or "No job offer provided."
+def _build_system_prompt(cv_text: str, job_offer_text: str | None) -> str:
+    offer_text = job_offer_text or "No job offer provided."
     return (
         "You are a recruitment assistant. Analyze the CV against the job offer and respond with ONLY a JSON object.\n\n"
         "Return JSON with exactly these fields:\n"
@@ -167,7 +121,7 @@ def _build_prompt(cv_text: str, job_offer: str | None) -> str:
     )
 
 
-def _extract_json(text: str) -> dict:
+def _extract_json_payload(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -185,7 +139,7 @@ def _extract_json(text: str) -> dict:
     raise ValueError("No valid JSON found in LLM response")
 
 
-def _normalize_response(payload: dict) -> dict:
+def _normalize_output(payload: dict) -> dict:
     score = payload.get("score")
     if isinstance(score, str):
         match = re.search(r"\d+", score)
@@ -212,15 +166,15 @@ def _normalize_response(payload: dict) -> dict:
     }
 
 
-def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
-    region, model_id = _get_bedrock_config()
+def _invoke_bedrock(cv_text: str, job_offer_text: str | None) -> dict:
+    region, model_id = _read_bedrock_config()
     if not region or not model_id:
         raise ValueError("AWS_REGION and BEDROCK_MODEL_ID must be set for Bedrock")
 
-    prompt = _build_prompt(cv_text, job_offer)
+    prompt = _build_system_prompt(cv_text, job_offer_text)
     max_tokens = int(os.getenv("BEDROCK_MAX_TOKENS", "700"))
 
-    client = _create_bedrock_client(region)
+    client = _new_bedrock_client(region)
 
     try:
         logger.info("Bedrock enabled. model_id=%s", model_id)
@@ -262,8 +216,8 @@ def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
         if not llm_text:
             raise ValueError("Empty LLM response text")
 
-        extracted = _extract_json(llm_text)
-        return _normalize_response(extracted)
+        extracted = _extract_json_payload(llm_text)
+        return _normalize_output(extracted)
 
     except (ClientError, BotoCoreError) as exc:
         raise RuntimeError("Bedrock error: %s" % exc) from exc
@@ -271,55 +225,19 @@ def _bedrock_analyze(cv_text: str, job_offer: str | None) -> dict:
         raise RuntimeError("Invalid Bedrock response: %s" % exc) from exc
 
 
-def analyze_cv(payload: dict) -> dict:
-    logger.info("Received payload for analysis")
-    validated = _validate_payload(payload)
-    cv_text = validated["cv_text"]
-    job_offer = validated["job_offer"]
+def analyze_cv(cv_text: str, job_offer: str | dict | None = None) -> dict:
+    job_offer_text = _normalize_job_offer(job_offer)
+    if job_offer is not None and job_offer_text is None:
+        raise ValueError(
+            "'job_offer' must include at least one of: title, description, requirements"
+        )
 
-    use_bedrock = _is_bedrock_enabled()
-    if use_bedrock:
+    if _bedrock_enabled():
         try:
-            return _bedrock_analyze(cv_text, job_offer)
+            return _invoke_bedrock(cv_text, job_offer_text)
         except Exception as exc:
             logger.error("Bedrock failed, falling back to mock: %s", exc)
-            return _mock_analyze(cv_text, job_offer)
+            return _mock_analysis(cv_text, job_offer_text)
 
     logger.info("USE_BEDROCK is false. Using mock analysis.")
-    return _mock_analyze(cv_text, job_offer)
-
-
-app = BedrockAgentCoreApp() if BedrockAgentCoreApp else None
-
-
-if app:
-    @app.entrypoint
-    async def invoke(payload, context=None):
-        try:
-            logger.info("Invoking runtime entrypoint")
-            return analyze_cv(payload)
-        except Exception as exc:
-            logger.error("Runtime error: %s", exc)
-            return _error(str(exc))
-
-
-def _local_test() -> None:
-    sample_payload = {
-        "cv_text": "Senior backend engineer with Python, FastAPI, AWS, Docker.",
-        "job_offer": {
-            "title": "Senior Python Developer",
-            "description": "Backend role focused on APIs and data systems.",
-            "requirements": ["Python", "FastAPI", "PostgreSQL", "Docker", "AWS"],
-        },
-    }
-    result = analyze_cv(sample_payload)
-    print(json.dumps(result, indent=2))
-
-
-if __name__ == "__main__":
-    if app is not None and os.getenv("LOCAL_TEST", "false").lower() != "true":
-        logger.info("Starting Bedrock AgentCore runtime")
-        app.run()
-    else:
-        logger.info("Running local test mode")
-        _local_test()
+    return _mock_analysis(cv_text, job_offer_text)
