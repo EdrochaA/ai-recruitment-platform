@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Recruitment Flow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient"></div>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">TFG Frontend Sprint</p>
+        <h1>AI Recruitment Flow</h1>
+        <p class="subhead">Minimal UI to validate the core pipeline: offers, applications, CV upload, processing, and analysis.</p>
+      </div>
+      <div class="status-card">
+        <label for="baseUrl">Backend Base URL</label>
+        <input id="baseUrl" type="text" placeholder="http://localhost:8000" />
+        <button id="saveBaseUrl" class="primary">Save</button>
+        <div id="status" class="status">Idle</div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Job Offers</h2>
+          <button id="refreshOffers" class="ghost">Refresh</button>
+        </div>
+        <form id="createOfferForm" class="form">
+          <input name="title" placeholder="Title" required />
+          <input name="location" placeholder="Location" required />
+          <textarea name="description" placeholder="Description" required></textarea>
+          <button class="primary" type="submit">Create Offer</button>
+        </form>
+        <div id="offersList" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Applications</h2>
+          <div class="row">
+            <input id="offerIdFilter" placeholder="Job offer id" />
+            <button id="listApplications" class="ghost">List</button>
+          </div>
+        </div>
+        <form id="createApplicationForm" class="form">
+          <input name="job_offer_id" placeholder="Job offer id" required />
+          <input name="candidate_name" placeholder="Candidate name" required />
+          <input name="candidate_email" placeholder="Candidate email" required />
+          <button class="primary" type="submit">Create Application</button>
+        </form>
+        <div id="applicationsList" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>CV Actions</h2>
+        </div>
+        <div class="form">
+          <input id="applicationId" placeholder="Application id" />
+          <input id="cvFile" type="file" accept="application/pdf" />
+          <div class="row">
+            <button id="uploadCv" class="primary">Upload CV</button>
+            <button id="processCv" class="ghost">Process</button>
+            <button id="analyzeCv" class="ghost">Analyze</button>
+          </div>
+        </div>
+        <div id="analysisResult" class="result"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
