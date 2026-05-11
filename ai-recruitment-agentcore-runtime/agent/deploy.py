@@ -40,7 +40,6 @@ def main() -> None:
     auto_create_execution_role = os.getenv("AGENTCORE_AUTO_CREATE_EXECUTION_ROLE", "true").lower() == "true"
     auto_create_ecr = os.getenv("AGENTCORE_AUTO_CREATE_ECR", "true").lower() == "true"
     memory_mode = os.getenv("AGENTCORE_MEMORY_MODE", "NO_MEMORY")
-    auto_update_on_conflict = os.getenv("AGENTCORE_AUTO_UPDATE_ON_CONFLICT", "true").lower() == "true"
 
     logger.info(
         "Deploy config: name=%s, entrypoint=%s, region=%s, requirements=%s",
@@ -59,7 +58,6 @@ def main() -> None:
             "auto_create_execution_role": auto_create_execution_role,
             "auto_create_ecr": auto_create_ecr,
             "memory_mode": memory_mode,
-            "auto_update_on_conflict": auto_update_on_conflict,
             "execution_role_arn": execution_role_arn,
         }
         if requirements_file:
