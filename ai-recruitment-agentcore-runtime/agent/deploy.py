@@ -36,7 +36,6 @@ def main() -> None:
     if not requirements_file:
         candidate = project_root / "requirements.txt"
         requirements_file = str(candidate) if candidate.exists() else None
-    execution_role_arn = os.getenv("AGENTCORE_EXECUTION_ROLE_ARN")
     auto_create_execution_role = os.getenv("AGENTCORE_AUTO_CREATE_EXECUTION_ROLE", "true").lower() == "true"
     auto_create_ecr = os.getenv("AGENTCORE_AUTO_CREATE_ECR", "true").lower() == "true"
     memory_mode = os.getenv("AGENTCORE_MEMORY_MODE", "NO_MEMORY")
@@ -58,7 +57,6 @@ def main() -> None:
             "auto_create_execution_role": auto_create_execution_role,
             "auto_create_ecr": auto_create_ecr,
             "memory_mode": memory_mode,
-            "execution_role_arn": execution_role_arn,
         }
         if requirements_file:
             configure_kwargs["requirements_file"] = requirements_file
