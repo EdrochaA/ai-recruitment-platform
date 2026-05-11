@@ -1,8 +1,10 @@
 import logging
 import os
+import sys
+import traceback
+from pathlib import Path
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from bedrock_agentcore_starter_toolkit import Runtime
 
 
 logging.basicConfig(
@@ -12,67 +14,65 @@ logger = logging.getLogger("agentcore-runtime")
 logger.setLevel(logging.INFO)
 
 
-REGION = os.getenv("AWS_REGION", "eu-west-1")
-RUNTIME_NAME = os.getenv("AGENTCORE_RUNTIME_NAME")
-EXECUTION_ROLE_ARN = os.getenv("AGENTCORE_EXECUTION_ROLE_ARN")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID")
-CDK_STACK_NAME = os.getenv("AGENTCORE_CDK_STACK_NAME")
-
-
-def _require(value: str | None, name: str) -> str:
-    if not value:
-        raise ValueError(f"Missing required environment variable: {name}")
-    return value
-
-
-def _check_identity() -> None:
-    try:
-        sts = boto3.client("sts", region_name=REGION)
-        identity = sts.get_caller_identity()
-        logger.info("AWS identity OK. account=%s", identity.get("Account"))
-    except (ClientError, BotoCoreError) as exc:
-        logger.error("AWS identity check failed: %s", exc)
-        raise
-
-
-def _check_cdk_stack() -> None:
-    if not CDK_STACK_NAME:
-        return
-
-    try:
-        cfn = boto3.client("cloudformation", region_name=REGION)
-        resp = cfn.describe_stacks(StackName=CDK_STACK_NAME)
-        stacks = resp.get("Stacks", [])
-        if stacks:
-            logger.info("CDK stack status: %s", stacks[0].get("StackStatus"))
-    except (ClientError, BotoCoreError) as exc:
-        logger.error("CloudFormation describe stack failed: %s", exc)
-        raise
+def _remove_agentcore_config(project_root: Path) -> None:
+    config_path = project_root / ".bedrock_agentcore.yaml"
+    if config_path.exists():
+        config_path.unlink()
+        logger.info("Removed existing .bedrock_agentcore.yaml to avoid conflicts")
 
 
 def main() -> None:
-    logger.info("Starting AgentCore runtime deploy preflight")
+    project_root = Path(__file__).resolve().parents[1]
+    os.chdir(project_root)
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    _remove_agentcore_config(project_root)
+
+    agent_name = os.getenv("AGENTCORE_RUNTIME_NAME", "ai_recruitment_cv_analyzer_runtime")
+    entrypoint = os.getenv("AGENTCORE_ENTRYPOINT", "agent/main.py")
+    region = os.getenv("AWS_REGION", "eu-west-1")
+    requirements_file = os.getenv("AGENTCORE_REQUIREMENTS_FILE")
+    if not requirements_file:
+        candidate = project_root / "requirements.txt"
+        requirements_file = str(candidate) if candidate.exists() else None
+    execution_role_arn = os.getenv("AGENTCORE_EXECUTION_ROLE_ARN")
+    auto_create_execution_role = os.getenv("AGENTCORE_AUTO_CREATE_EXECUTION_ROLE", "true").lower() == "true"
+    auto_create_ecr = os.getenv("AGENTCORE_AUTO_CREATE_ECR", "true").lower() == "true"
+    memory_mode = os.getenv("AGENTCORE_MEMORY_MODE", "NO_MEMORY")
+    auto_update_on_conflict = os.getenv("AGENTCORE_AUTO_UPDATE_ON_CONFLICT", "true").lower() == "true"
+
+    logger.info(
+        "Deploy config: name=%s, entrypoint=%s, region=%s, requirements=%s",
+        agent_name,
+        entrypoint,
+        region,
+        requirements_file,
+    )
 
     try:
-        _require(REGION, "AWS_REGION")
-        _require(RUNTIME_NAME, "AGENTCORE_RUNTIME_NAME")
-        _require(EXECUTION_ROLE_ARN, "AGENTCORE_EXECUTION_ROLE_ARN")
-        _require(BEDROCK_MODEL_ID, "BEDROCK_MODEL_ID")
+        runtime = Runtime()
+        configure_kwargs = {
+            "agent_name": agent_name,
+            "entrypoint": entrypoint,
+            "region": region,
+            "auto_create_execution_role": auto_create_execution_role,
+            "auto_create_ecr": auto_create_ecr,
+            "memory_mode": memory_mode,
+            "auto_update_on_conflict": auto_update_on_conflict,
+            "execution_role_arn": execution_role_arn,
+        }
+        if requirements_file:
+            configure_kwargs["requirements_file"] = requirements_file
 
-        logger.info(
-            "Config ok. region=%s, runtime_name=%s, execution_role_arn=%s, model_id=%s",
-            REGION,
-            RUNTIME_NAME,
-            EXECUTION_ROLE_ARN,
-            BEDROCK_MODEL_ID,
-        )
+        runtime.configure(**configure_kwargs)
 
-        _check_identity()
-        _check_cdk_stack()
-
-        logger.info("Deploy preflight complete. Ready for manual AgentCore deployment.")
+        runtime_arn = runtime.launch()
+        logger.info("Runtime launched. ARN=%s", runtime_arn)
+        print(runtime_arn)
     except Exception as exc:
-        logger.error("Deploy preflight failed: %s", exc)
+        logger.error("Runtime deployment failed: %s", exc)
+        logger.error(traceback.format_exc())
         raise
 
 
