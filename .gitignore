@@ -15,6 +15,7 @@ dist/
 .venv/
 venv/
 ENV/
+env/
 
 # IDE
 .vscode/
@@ -22,12 +23,31 @@ ENV/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+*.lnk
+.directory
 
-# Project-specific
+# Node.js (si se agrega en el futuro)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Browser cache
+.cache/
+.parcel-cache/
+dist/
+
+# Frontend
+frontend/js/pages/__pycache__/
+frontend/.env.local
+frontend/node_modules/
+
+# Backend
 storage/
 */storage/
 *.pdf
@@ -37,3 +57,33 @@ uv.lock
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Local configuration (sensible data)
+.local/
+local_config/
+secrets/
+*.key
+*.pem
+
+# Temporal files
+*.tmp
+*.temp
+*~
+
+# AWS deployment
+.aws-sam/
+sam-tests/
+
+# Mac OS extended attributes
+._*
+
+# Coverage
+.coverage
+htmlcov/
