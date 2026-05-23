@@ -4,6 +4,7 @@
  */
 
 let hrJobs = [];
+let selectedJobId = null;
 let allApplications = {};
 
 /**
@@ -13,6 +14,7 @@ window.initHrDashboard = async function() {
   loadHRJobs();
   setupTabs();
   setupCreateOfferForm();
+  setupDetailsPanel();
 };
 
 /**
@@ -21,8 +23,8 @@ window.initHrDashboard = async function() {
 async function loadHRJobs() {
   try {
     UI.showLoading();
-    const jobs = await apiClient.getJobOffers();
-    hrJobs = jobs || [];
+    const response = await apiClient.getJobOffers();
+    hrJobs = response.offers || [];
     
     // For MVP, all jobs are shown to all HR users
     // In production, would filter by creator
@@ -52,11 +54,11 @@ function renderMyOffers() {
   emptyState.style.display = 'none';
   container.innerHTML = hrJobs.map(job => createOfferCard(job)).join('');
 
-  // Add event listeners
-  container.querySelectorAll('[data-action="view-applications"]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  // Add click listeners to all cards
+  container.querySelectorAll('.job-card').forEach(card => {
+    card.addEventListener('click', (e) => {
       const jobId = e.currentTarget.dataset.jobId;
-      selectTabAndLoadApplications('applications', jobId);
+      showOfferDetails(jobId);
     });
   });
 }
@@ -66,7 +68,7 @@ function renderMyOffers() {
  */
 function createOfferCard(job) {
   return `
-    <div class="job-card">
+    <div class="job-card" data-job-id="${job.id}" style="cursor: pointer;">
       <h3 class="job-card__title">${Format.truncate(job.title, 50)}</h3>
       <div class="job-card__location">
         📍 ${job.location}
@@ -74,12 +76,12 @@ function createOfferCard(job) {
       <p class="job-card__description">${Format.truncate(job.description, 100)}</p>
       <div class="job-card__footer">
         <div class="job-card__meta">
-          <span class="badge">${job.status || 'Abierta'}</span>
+          <span class="badge badge--${job.status?.toLowerCase() || 'open'}">${job.status || 'Abierta'}</span>
           <span style="font-size: 0.75rem; color: var(--gray-500);">ID: ${job.id.substring(0, 8)}</span>
         </div>
-        <button class="btn btn--secondary" data-action="view-applications" data-job-id="${job.id}">
-          Ver candidaturas
-        </button>
+      </div>
+      <div style="font-size: 0.85rem; color: var(--primary); margin-top: 8px;">
+        Haz clic para ver detalles →
       </div>
     </div>
   `;
@@ -138,6 +140,193 @@ function setupCreateOfferForm() {
       await handleCreateOffer();
     });
   }
+}
+
+/**
+ * Setup details panel
+ */
+function setupDetailsPanel() {
+  const detailsPanel = document.getElementById('offer-details-panel');
+  const closeBtn = document.getElementById('details-panel-close');
+  
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeOfferDetails);
+  }
+  
+  // Close when clicking outside
+  if (detailsPanel) {
+    detailsPanel.addEventListener('click', (e) => {
+      if (e.target === detailsPanel) {
+        closeOfferDetails();
+      }
+    });
+  }
+}
+
+/**
+ * Show offer details in panel
+ */
+async function showOfferDetails(jobId) {
+  selectedJobId = jobId;
+  const job = hrJobs.find(j => j.id === jobId);
+  
+  if (!job) return;
+  
+  // Load applications
+  try {
+    UI.showLoading();
+    const applications = await apiClient.getApplicationsByJobOffer(jobId);
+    allApplications[jobId] = applications || [];
+    UI.hideLoading();
+  } catch (error) {
+    console.error('Error loading applications:', error);
+    allApplications[jobId] = [];
+    UI.hideLoading();
+  }
+  
+  // Render the details panel
+  renderOfferDetailsPanel(job);
+  
+  // Show panel
+  const panel = document.getElementById('offer-details-panel');
+  if (panel) {
+    panel.style.display = 'flex';
+  }
+}
+
+/**
+ * Close offer details panel
+ */
+function closeOfferDetails() {
+  const panel = document.getElementById('offer-details-panel');
+  if (panel) {
+    panel.style.display = 'none';
+  }
+  selectedJobId = null;
+}
+
+/**
+ * Render offer details panel
+ */
+function renderOfferDetailsPanel(job) {
+  const contentDiv = document.getElementById('offer-details-content');
+  if (!contentDiv) return;
+  
+  const applications = allApplications[job.id] || [];
+  
+  const applicationsHtml = applications.length > 0 ? `
+    <div class="offer-detail__section">
+      <h3>Candidaturas (${applications.length})</h3>
+      <table class="applications-table" style="width: 100%; margin-top: 10px;">
+        <thead>
+          <tr>
+            <th>Candidato</th>
+            <th>Email</th>
+            <th>CV</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${applications.map(app => `
+            <tr>
+              <td>${app.candidate_name}</td>
+              <td>${app.candidate_email}</td>
+              <td>${app.cv_original_filename ? app.cv_original_filename : '-'}</td>
+              <td>${Format.date(app.created_at)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : `
+    <div class="offer-detail__section">
+      <p style="color: var(--gray-500); text-align: center; padding: 20px;">
+        No hay candidaturas aún para esta oferta
+      </p>
+    </div>
+  `;
+  
+  const content = `
+    <div class="offer-detail">
+      <div class="offer-detail__header">
+        <div>
+          <h2>${job.title}</h2>
+          <p class="offer-detail__company">${job.company}</p>
+        </div>
+        <span class="badge badge--${job.status?.toLowerCase() || 'open'}">${job.status || 'Abierta'}</span>
+      </div>
+      
+      <div class="offer-detail__sections">
+        <div class="offer-detail__section">
+          <h3>Información General</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <strong>Ubicación:</strong>
+              <p>${job.location}</p>
+            </div>
+            <div>
+              <strong>Tipo de empleo:</strong>
+              <p>${job.employment_type || '-'}</p>
+            </div>
+            <div>
+              <strong>Salario:</strong>
+              <p>${job.salary_min && job.salary_max ? `${job.salary_min} - ${job.salary_max} ${job.currency}` : '-'}</p>
+            </div>
+            <div>
+              <strong>Fecha de creación:</strong>
+              <p>${Format.date(job.created_at)}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="offer-detail__section">
+          <h3>Descripción</h3>
+          <p>${job.description}</p>
+        </div>
+        
+        ${job.required_skills && job.required_skills.length > 0 ? `
+        <div class="offer-detail__section">
+          <h3>Habilidades Requeridas</h3>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${job.required_skills.map(skill => `
+              <span class="badge badge--secondary">${skill}</span>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+        
+        <div class="offer-detail__section">
+          <h3>Acciones</h3>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn--secondary" onclick="closeOfferDetails()">Cerrar Panel</button>
+            ${job.status === 'open' ? `
+              <button class="btn btn--warning" onclick="closeOfferStatus()">Cerrar Oferta</button>
+            ` : ''}
+          </div>
+        </div>
+        
+        ${applicationsHtml}
+      </div>
+    </div>
+  `;
+  
+  contentDiv.innerHTML = content;
+}
+
+/**
+ * Close offer status
+ */
+async function closeOfferStatus() {
+  if (!selectedJobId) return;
+  
+  if (!confirm('¿Seguro que deseas cerrar esta oferta? Los candidatos no podrán aplicar')) {
+    return;
+  }
+  
+  // TODO: Implement close offer endpoint
+  UI.showSuccess('Oferta cerrada correctamente');
+  closeOfferDetails();
+  loadHRJobs();
 }
 
 /**

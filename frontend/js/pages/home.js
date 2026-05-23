@@ -21,8 +21,8 @@ window.initHome = async function() {
 async function loadJobOffers() {
   try {
     UI.showLoading();
-    const jobs = await apiClient.getJobOffers();
-    currentJobs = jobs || [];
+    const response = await apiClient.getJobOffers();
+    currentJobs = response.offers || [];
     
     // Cache jobs
     Storage.saveJobCache(currentJobs);

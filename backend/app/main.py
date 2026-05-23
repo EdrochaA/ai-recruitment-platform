@@ -4,13 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from app.adapters.http.routers.job_offer_router import router as job_offer_router
+from app.adapters.http.routers.job_offer_router import router as job_offer_router, set_job_offer_service
 from app.adapters.http.routers.application_router import router as application_router
 from app.adapters.http.routers.auth_router import router as auth_router, set_auth_service
 from app.adapters.persistence.mongodb_user_repository import MongoDBUserRepository
+from app.adapters.persistence.mongodb_job_offer_repository import MongoDBJobOfferRepository
 from app.adapters.security.bcrypt_password_hasher import BcryptPasswordHasher
 from app.adapters.security.jwt_token_service import JWTTokenService
 from app.application.services.authentication_service import AuthenticationService
+from app.application.services.job_offer_service import JobOfferService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,12 +47,14 @@ mongodb_url = os.getenv("MONGODB_URL")
 mongodb_database = os.getenv("MONGODB_DATABASE", "ai-recruitment-platform")
 
 if not mongodb_url:
-    logger.warning("MONGODB_URL not set. Auth endpoints will not work.")
+    logger.warning("MONGODB_URL not set. Auth and JobOffer endpoints will not work.")
     auth_service = None
+    job_offer_service = None
 else:
     try:
-        # Initialize repositories and security adapters
+        # Initialize repositories
         user_repository = MongoDBUserRepository(mongodb_url, mongodb_database)
+        job_offer_repository = MongoDBJobOfferRepository(mongodb_url, mongodb_database)
         
         # Initialize security services
         password_hasher = BcryptPasswordHasher(rounds=12)
@@ -72,12 +76,20 @@ else:
             token_service=token_service
         )
         
+        # Initialize job offer service
+        job_offer_service = JobOfferService(
+            job_offer_repository=job_offer_repository,
+            user_repository=user_repository
+        )
+        
         set_auth_service(auth_service)
-        logger.info("Authentication service initialized successfully")
+        set_job_offer_service(job_offer_service)
+        logger.info("Authentication and JobOffer services initialized successfully")
         
     except Exception as e:
-        logger.error(f"Failed to initialize auth service: {e}")
+        logger.error(f"Failed to initialize services: {e}")
         auth_service = None
+        job_offer_service = None
 
 # Include routers
 app.include_router(auth_router)
@@ -89,12 +101,13 @@ app.include_router(application_router)
 def health_check():
     """Health check endpoint"""
     auth_status = "connected" if auth_service else "not initialized"
+    job_offers_status = "ready" if job_offer_service else "not initialized"
     return {
         "message": "Backend funcionando correctamente",
         "version": "0.1.0",
         "services": {
             "auth": auth_status,
-            "job_offers": "ready",
+            "job_offers": job_offers_status,
             "applications": "ready"
         }
     }

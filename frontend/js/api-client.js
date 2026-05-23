@@ -9,6 +9,22 @@ class APIClient {
   }
 
   /**
+   * Get auth token from localStorage
+   */
+  getAuthToken() {
+    try {
+      const session = localStorage.getItem('ai_recruitment_auth');
+      if (session) {
+        const data = JSON.parse(session);
+        return data.access_token;
+      }
+    } catch (error) {
+      console.error('Error reading auth token:', error);
+    }
+    return null;
+  }
+
+  /**
    * Generic fetch wrapper
    */
   async request(endpoint, options = {}) {
@@ -17,6 +33,12 @@ class APIClient {
       'Content-Type': 'application/json',
       ...options.headers,
     };
+
+    // Add auth token if available
+    const token = this.getAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
     try {
       const response = await fetch(url, {
@@ -49,13 +71,14 @@ class APIClient {
     return this.request('/job-offers');
   }
 
-  async createJobOffer(title, location, description) {
+  async createJobOffer(title, location, description, company = '') {
     return this.request('/job-offers', {
       method: 'POST',
       body: JSON.stringify({
         title,
         location,
         description,
+        company: company || 'Your Company',
       }),
     });
   }
@@ -84,9 +107,16 @@ class APIClient {
     formData.append('file', file);
 
     try {
+      const headers = {};
+      const token = this.getAuthToken();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${this.baseURL}/applications/${applicationId}/cv`, {
         method: 'POST',
         body: formData,
+        headers,
       });
 
       if (!response.ok) {

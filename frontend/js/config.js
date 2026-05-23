@@ -24,7 +24,5 @@ const CONFIG = {
   TIMEOUT: 10000,
 };
 
-// Allow configuration override via localStorage or environment
+// Make CONFIG available globally
 window.CONFIG = CONFIG;
-
-export default CONFIG;
