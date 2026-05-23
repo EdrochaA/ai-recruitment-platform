@@ -334,36 +334,61 @@ async function closeOfferStatus() {
  */
 async function handleCreateOffer() {
   const titleInput = document.getElementById('offer-title');
+  const companyInput = document.getElementById('offer-company');
   const locationInput = document.getElementById('offer-location');
   const descriptionInput = document.getElementById('offer-description');
+  const employmentTypeSelect = document.getElementById('offer-employment-type');
+  const salaryMinInput = document.getElementById('offer-salary-min');
+  const salaryMaxInput = document.getElementById('offer-salary-max');
+  const requiredSkillsInput = document.getElementById('offer-required-skills');
+  const niceSkillsInput = document.getElementById('offer-nice-skills');
 
-  // Validate
-  if (!titleInput.value.trim() || !locationInput.value.trim() || !descriptionInput.value.trim()) {
-    UI.showError('Todos los campos son requeridos');
+  // Validate required fields
+  if (!titleInput.value.trim() || !companyInput.value.trim() || !locationInput.value.trim() || !descriptionInput.value.trim()) {
+    UI.showError('Título, empresa, ubicación y descripción son requeridos');
     return;
   }
 
   try {
     UI.showLoading();
 
-    const newOffer = await apiClient.createJobOffer(
-      titleInput.value.trim(),
-      locationInput.value.trim(),
-      descriptionInput.value.trim()
-    );
+    // Parse skills
+    const requiredSkills = requiredSkillsInput.value
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    
+    const niceSkills = niceSkillsInput.value
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const offerData = {
+      title: titleInput.value.trim(),
+      company: companyInput.value.trim(),
+      location: locationInput.value.trim(),
+      description: descriptionInput.value.trim(),
+      employment_type: employmentTypeSelect.value,
+      salary_min: parseFloat(salaryMinInput.value) || 0,
+      salary_max: parseFloat(salaryMaxInput.value) || 0,
+      required_skills: requiredSkills,
+      nice_to_have_skills: niceSkills,
+    };
+
+    const newOffer = await apiClient.createJobOffer(offerData);
 
     UI.hideLoading();
     UI.showSuccess('¡Oferta de trabajo creada exitosamente!');
 
     // Reset form
-    UI.clearForm('create-offer-form');
+    document.getElementById('create-offer-form').reset();
 
     // Reload offers
     loadHRJobs();
   } catch (error) {
     UI.hideLoading();
     console.error('Error creating offer:', error);
-    UI.showError('Error al crear la oferta. Intenta de nuevo.');
+    UI.showError(error.message || 'Error al crear la oferta. Intenta de nuevo.');
   }
 }
 

@@ -155,7 +155,7 @@ async def get_my_offers(authorization: Optional[str] = Header(None)):
         )
     
     try:
-        result = await job_offer_service.get_my_offers(payload.get("email"))
+        result = await job_offer_service.get_my_offers(payload.get("user_id"))
         return result
     except Exception as e:
         raise HTTPException(

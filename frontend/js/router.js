@@ -95,8 +95,9 @@ class Router {
       document.title = route.title;
 
       // Call page-specific init if available
-      if (window[`init${routeName.charAt(0).toUpperCase()}${routeName.slice(1)}`]) {
-        window[`init${routeName.charAt(0).toUpperCase()}${routeName.slice(1)}`](params);
+      const initFunctionName = 'init' + routeName.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+      if (window[initFunctionName]) {
+        window[initFunctionName](params);
       }
 
       // Scroll to top

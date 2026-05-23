@@ -218,6 +218,11 @@
                             </div>
 
                             <div class="form__group">
+                                <label for="offer-company" class="form__label">Empresa</label>
+                                <input type="text" id="offer-company" class="form__input" placeholder="Nombre de la empresa" required>
+                            </div>
+
+                            <div class="form__group">
                                 <label for="offer-location" class="form__label">Ubicación</label>
                                 <input type="text" id="offer-location" class="form__input" placeholder="ej: Madrid, España" required>
                             </div>
@@ -225,6 +230,37 @@
                             <div class="form__group">
                                 <label for="offer-description" class="form__label">Descripción del puesto</label>
                                 <textarea id="offer-description" class="form__textarea" placeholder="Describe los requisitos, responsabilidades, etc." required></textarea>
+                            </div>
+
+                            <div class="form__group">
+                                <label for="offer-employment-type" class="form__label">Tipo de empleo</label>
+                                <select id="offer-employment-type" class="form__input">
+                                    <option value="full-time">Tiempo completo</option>
+                                    <option value="part-time">Tiempo parcial</option>
+                                    <option value="contract">Contrato</option>
+                                    <option value="freelance">Freelance</option>
+                                </select>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="form__group">
+                                    <label for="offer-salary-min" class="form__label">Salario mínimo (EUR)</label>
+                                    <input type="number" id="offer-salary-min" class="form__input" placeholder="0" min="0">
+                                </div>
+                                <div class="form__group">
+                                    <label for="offer-salary-max" class="form__label">Salario máximo (EUR)</label>
+                                    <input type="number" id="offer-salary-max" class="form__input" placeholder="0" min="0">
+                                </div>
+                            </div>
+
+                            <div class="form__group">
+                                <label for="offer-required-skills" class="form__label">Habilidades requeridas (separadas por comas)</label>
+                                <input type="text" id="offer-required-skills" class="form__input" placeholder="Python, FastAPI, PostgreSQL">
+                            </div>
+
+                            <div class="form__group">
+                                <label for="offer-nice-skills" class="form__label">Habilidades deseables (separadas por comas)</label>
+                                <input type="text" id="offer-nice-skills" class="form__input" placeholder="Docker, Kubernetes, AWS">
                             </div>
 
                             <button type="submit" class="btn btn--primary">Publicar Oferta</button>

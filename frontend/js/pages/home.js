@@ -73,24 +73,10 @@ function renderJobListings() {
   });
 
   // Add button event listeners
-  container.querySelectorAll('[data-action="view"]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      viewJobDetail(e.currentTarget.dataset.jobId);
-    });
-  });
-
   container.querySelectorAll('[data-action="apply"]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       applyToJob(e.currentTarget.dataset.jobId);
-    });
-  });
-
-  container.querySelectorAll('[data-action="login"]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      router.showAuthModal();
     });
   });
 }
@@ -102,22 +88,12 @@ function createJobCard(job) {
   const isAuthenticated = authSystem.isAuthenticated();
   const isCandidate = authSystem.isCandidate();
 
-  let actionButtons = `
-    <button class="btn btn--primary" data-action="view" data-job-id="${job.id}">
-      Ver oferta
-    </button>
-  `;
+  let actionButtons = '';
 
   if (isAuthenticated && isCandidate) {
-    actionButtons += `
+    actionButtons = `
       <button class="btn btn--secondary" data-action="apply" data-job-id="${job.id}">
         Aplicar
-      </button>
-    `;
-  } else if (!isAuthenticated) {
-    actionButtons += `
-      <button class="btn btn--secondary" data-action="login">
-        Iniciar sesión para aplicar
       </button>
     `;
   }
@@ -130,9 +106,6 @@ function createJobCard(job) {
       </div>
       <p class="job-card__description">${Format.truncate(job.description, 100)}</p>
       <div class="job-card__footer">
-        <div class="job-card__meta">
-          <span class="badge">${job.status || 'Abierta'}</span>
-        </div>
         <div style="display: flex; gap: 0.5rem;">
           ${actionButtons}
         </div>

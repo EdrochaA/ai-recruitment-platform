@@ -71,14 +71,38 @@ class APIClient {
     return this.request('/job-offers');
   }
 
-  async createJobOffer(title, location, description, company = '') {
+  async createJobOffer(offerData) {
+    // Validate user has auth token and proper role
+    const token = this.getAuthToken();
+    if (!token) {
+      throw new Error('Debes iniciar sesión para crear ofertas');
+    }
+
+    // Parse token to check role
+    try {
+      const parts = token.split('.');
+      const payload = JSON.parse(atob(parts[1]));
+      if (!['admin', 'hr'].includes(payload.role)) {
+        throw new Error('Solo administradores y RRHH pueden crear ofertas');
+      }
+    } catch (error) {
+      if (error.message.includes('Solo')) throw error;
+      console.warn('Could not verify role from token, will rely on backend validation');
+    }
+
     return this.request('/job-offers', {
       method: 'POST',
       body: JSON.stringify({
-        title,
-        location,
-        description,
-        company: company || 'Your Company',
+        title: offerData.title,
+        company: offerData.company,
+        location: offerData.location,
+        description: offerData.description,
+        employment_type: offerData.employment_type || 'full-time',
+        salary_min: offerData.salary_min || 0,
+        salary_max: offerData.salary_max || 0,
+        currency: 'EUR',
+        required_skills: offerData.required_skills || [],
+        nice_to_have_skills: offerData.nice_to_have_skills || [],
       }),
     });
   }
