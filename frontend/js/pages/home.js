@@ -141,13 +141,17 @@ function setupEventListeners() {
   const searchInput = document.getElementById('search-input');
   
   if (searchInput) {
-    searchInput.addEventListener('input', debounce(handleSearch, 300));
+    searchInput.oninput = debounce(handleSearch, 300);
   }
 
   // Refresh button if exists
   const refreshBtn = document.querySelector('[data-action="refresh"]');
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', () => loadJobOffers());
+    refreshBtn.onclick = function(e) {
+      e.preventDefault();
+      loadJobOffers();
+      return false;
+    };
   }
 }
 

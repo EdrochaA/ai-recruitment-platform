@@ -9,7 +9,7 @@ let currentJob = null;
  * Initialize job detail page
  */
 window.initJobDetail = function(params) {
-  if (params.job) {
+  if (params && params.job) {
     currentJob = params.job;
   }
 
@@ -53,21 +53,15 @@ function renderApplySection(container) {
   if (!isAuthenticated) {
     container.innerHTML = `
       <div class="alert alert--error" style="margin-top: 2rem;">
-        <p>Debes <button class="btn btn--link" id="login-for-apply">iniciar sesión</button> para aplicar a esta oferta.</p>
+        <p>Debes <button class="btn btn--link" onclick="router.showAuthModal(); return false;">iniciar sesión</button> para aplicar a esta oferta.</p>
       </div>
     `;
-    document.getElementById('login-for-apply').addEventListener('click', () => {
-      router.showAuthModal();
-    });
   } else if (isCandidate) {
     container.innerHTML = `
-      <button class="btn btn--primary btn--full" id="apply-btn" style="margin-top: 2rem;">
+      <button class="btn btn--primary btn--full" onclick="router.navigate('apply', { job: currentJob }); return false;" style="margin-top: 2rem;">
         Aplicar a esta oferta
       </button>
     `;
-    document.getElementById('apply-btn').addEventListener('click', () => {
-      router.navigate('apply', { job: currentJob });
-    });
   } else {
     container.innerHTML = `
       <div class="alert alert--error" style="margin-top: 2rem;">
@@ -91,8 +85,10 @@ function setupDeleteButton() {
 function setupBackButton() {
   const backBtn = document.getElementById('back-button');
   if (backBtn) {
-    backBtn.addEventListener('click', () => {
+    backBtn.onclick = function(e) {
+      e.preventDefault();
       router.navigate('home');
-    });
+      return false;
+    };
   }
 }

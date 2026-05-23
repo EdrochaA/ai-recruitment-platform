@@ -17,10 +17,11 @@ window.initAdminDashboard = function() {
 function setupCreateHRForm() {
   const form = document.getElementById('create-hr-form');
   if (form) {
-    form.addEventListener('submit', async (e) => {
+    form.onsubmit = async function(e) {
       e.preventDefault();
       await handleCreateHRUser();
-    });
+      return false;
+    };
   }
 }
 

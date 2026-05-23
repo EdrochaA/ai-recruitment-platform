@@ -92,10 +92,12 @@ function createOfferCard(job) {
  */
 function setupTabs() {
   document.querySelectorAll('.tab-button').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.onclick = function(e) {
+      e.preventDefault();
       const targetTab = e.currentTarget.dataset.tab;
       switchTab(targetTab);
-    });
+      return false;
+    };
   });
 }
 
@@ -135,10 +137,11 @@ function selectTabAndLoadApplications(tabName, jobId) {
 function setupCreateOfferForm() {
   const form = document.getElementById('create-offer-form');
   if (form) {
-    form.addEventListener('submit', async (e) => {
+    form.onsubmit = async function(e) {
       e.preventDefault();
       await handleCreateOffer();
-    });
+      return false;
+    };
   }
 }
 
@@ -150,16 +153,20 @@ function setupDetailsPanel() {
   const closeBtn = document.getElementById('details-panel-close');
   
   if (closeBtn) {
-    closeBtn.addEventListener('click', closeOfferDetails);
+    closeBtn.onclick = function(e) {
+      e.preventDefault();
+      closeOfferDetails();
+      return false;
+    };
   }
   
   // Close when clicking outside
   if (detailsPanel) {
-    detailsPanel.addEventListener('click', (e) => {
+    detailsPanel.onclick = function(e) {
       if (e.target === detailsPanel) {
         closeOfferDetails();
       }
-    });
+    };
   }
 }
 

@@ -10,7 +10,7 @@ let createdApplicationId = null;
  * Initialize apply page
  */
 window.initApply = function(params) {
-  if (params.job) {
+  if (params && params.job) {
     applicationJob = params.job;
   }
 
@@ -37,7 +37,7 @@ function setupApplyForm() {
   jobTitleEl.textContent = applicationJob.title;
 
   // Handle file input change
-  cvInput.addEventListener('change', (e) => {
+  cvInput.onchange = function(e) {
     const file = e.target.files[0];
     if (file) {
       // Validate file
@@ -57,13 +57,14 @@ function setupApplyForm() {
 
       cvNameEl.textContent = `✓ ${file.name} (${Format.fileSize(file.size)})`;
     }
-  });
+  };
 
   // Handle form submission
-  form.addEventListener('submit', async (e) => {
+  form.onsubmit = async function(e) {
     e.preventDefault();
     await handleApplicationSubmit();
-  });
+    return false;
+  };
 }
 
 /**
@@ -143,8 +144,10 @@ async function handleApplicationSubmit() {
 function setupBackButton() {
   const backBtn = document.getElementById('back-from-apply');
   if (backBtn) {
-    backBtn.addEventListener('click', () => {
+    backBtn.onclick = function(e) {
+      e.preventDefault();
       router.navigate('job-detail', { job: applicationJob });
-    });
+      return false;
+    };
   }
 }
