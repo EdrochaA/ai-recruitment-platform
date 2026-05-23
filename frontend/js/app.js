@@ -144,7 +144,7 @@ class Application {
       return;
     }
 
-    const result = authSystem.login(email, password);
+    const result = await authSystem.login(email, password);
 
     if (!result.success) {
       UI.showError(result.error);
@@ -176,14 +176,12 @@ class Application {
     const nameInput = document.getElementById('signup-name');
     const emailInput = document.getElementById('signup-email');
     const passwordInput = document.getElementById('signup-password');
-    const roleInput = document.getElementById('signup-role');
 
     const name = nameInput.value.trim();
     const email = emailInput.value.trim();
     const password = passwordInput.value;
-    const role = roleInput.value;
 
-    if (!name || !email || !password || !role) {
+    if (!name || !email || !password) {
       UI.showError('Todos los campos son requeridos');
       return;
     }
@@ -198,7 +196,8 @@ class Application {
       return;
     }
 
-    const result = authSystem.signup(name, email, password, role);
+    // Signup as candidate (always)
+    const result = await authSystem.signup(name, email, password);
 
     if (!result.success) {
       UI.showError(result.error);

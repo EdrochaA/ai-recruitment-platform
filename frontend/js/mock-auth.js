@@ -87,7 +87,7 @@ class MockAuthSystem {
   /**
    * Signup - create new user account
    */
-  signup(name, email, password, role) {
+  signup(name, email, password) {
     const users = this.getAllUsers();
 
     if (users[email]) {
@@ -97,19 +97,13 @@ class MockAuthSystem {
       };
     }
 
-    if (!['candidate', 'hr'].includes(role)) {
-      return {
-        success: false,
-        error: 'Tipo de usuario inválido',
-      };
-    }
-
+    // Always create as candidate (no role selection)
     const newUser = {
       id: `user-${Date.now()}`,
       email,
       name,
       password,
-      role,
+      role: 'candidate',  // Always candidate
       createdAt: new Date().toISOString(),
     };
 
