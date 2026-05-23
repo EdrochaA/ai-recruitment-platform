@@ -1,11 +1,16 @@
 """
 Authentication Router
-Endpoints for user signup and login
+HTTP endpoints for user signup, login, and admin operations
 """
 
 from fastapi import APIRouter, HTTPException, status, Header
 from typing import Optional
-from app.domain.entities.user import UserCreate, UserLogin, TokenResponse, AdminCreateUser
+from app.adapters.http.schemas.user_schemas import (
+    UserCreateRequest,
+    AdminCreateUserRequest,
+    UserLoginRequest,
+    TokenResponse
+)
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -20,7 +25,7 @@ def set_auth_service(service):
 
 
 @router.post("/signup", response_model=TokenResponse)
-async def signup(user_data: UserCreate):
+async def signup(user_data: UserCreateRequest):
     """
     Register a new CANDIDATE account (public signup)
     
@@ -50,7 +55,7 @@ async def signup(user_data: UserCreate):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+async def login(credentials: UserLoginRequest):
     """
     Authenticate user and get JWT token
     
@@ -77,7 +82,7 @@ async def login(credentials: UserLogin):
 
 @router.post("/admin/create-user", response_model=TokenResponse)
 async def create_user_as_admin(
-    user_data: AdminCreateUser,
+    user_data: AdminCreateUserRequest,
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -101,7 +106,7 @@ async def create_user_as_admin(
     token = authorization.split(" ")[1]
     
     # Verify token
-    payload = auth_service.jwt_service.verify_token(token)
+    payload = auth_service.token_service.verify_token(token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

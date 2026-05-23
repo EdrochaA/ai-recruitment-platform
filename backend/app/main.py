@@ -1,4 +1,5 @@
 import os
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -7,7 +8,13 @@ from app.adapters.http.routers.job_offer_router import router as job_offer_route
 from app.adapters.http.routers.application_router import router as application_router
 from app.adapters.http.routers.auth_router import router as auth_router, set_auth_service
 from app.adapters.persistence.mongodb_user_repository import MongoDBUserRepository
-from app.application.services.authentication_service import AuthenticationService, JWTService
+from app.adapters.security.bcrypt_password_hasher import BcryptPasswordHasher
+from app.adapters.security.jwt_token_service import JWTTokenService
+from app.application.services.authentication_service import AuthenticationService
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -33,30 +40,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize MongoDB connection
+# Initialize repositories and services
 mongodb_url = os.getenv("MONGODB_URL")
-mongodb_database = os.getenv("MONGODB_DATABASE", "ai_recruitment")
+mongodb_database = os.getenv("MONGODB_DATABASE", "ai-recruitment-platform")
 
 if not mongodb_url:
-    raise RuntimeError("MONGODB_URL environment variable is not set")
-
-# Initialize repositories and services
-user_repository = MongoDBUserRepository(mongodb_url, mongodb_database)
-
-# Initialize JWT service
-jwt_secret = os.getenv("JWT_SECRET", "your-secret-key-change-this")
-jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
-jwt_expiration = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
-
-jwt_service = JWTService(
-    secret_key=jwt_secret,
-    algorithm=jwt_algorithm,
-    expiration_hours=jwt_expiration
-)
-
-# Initialize authentication service
-auth_service = AuthenticationService(user_repository, jwt_service)
-set_auth_service(auth_service)
+    logger.warning("MONGODB_URL not set. Auth endpoints will not work.")
+    auth_service = None
+else:
+    try:
+        # Initialize repositories and security adapters
+        user_repository = MongoDBUserRepository(mongodb_url, mongodb_database)
+        
+        # Initialize security services
+        password_hasher = BcryptPasswordHasher(rounds=12)
+        
+        jwt_secret = os.getenv("JWT_SECRET", "your-secret-key-change-this")
+        jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+        jwt_expiration = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+        
+        token_service = JWTTokenService(
+            secret_key=jwt_secret,
+            algorithm=jwt_algorithm,
+            expiration_hours=jwt_expiration
+        )
+        
+        # Initialize authentication service
+        auth_service = AuthenticationService(
+            user_repository=user_repository,
+            password_hasher=password_hasher,
+            token_service=token_service
+        )
+        
+        set_auth_service(auth_service)
+        logger.info("Authentication service initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize auth service: {e}")
+        auth_service = None
 
 # Include routers
 app.include_router(auth_router)
@@ -66,8 +87,14 @@ app.include_router(application_router)
 
 @app.get("/")
 def health_check():
+    """Health check endpoint"""
+    auth_status = "connected" if auth_service else "not initialized"
     return {
         "message": "Backend funcionando correctamente",
         "version": "0.1.0",
-        "services": ["auth", "job_offers", "applications"]
+        "services": {
+            "auth": auth_status,
+            "job_offers": "ready",
+            "applications": "ready"
+        }
     }
