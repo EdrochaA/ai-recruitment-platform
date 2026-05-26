@@ -65,19 +65,9 @@ function renderJobListings() {
 
   // Add event listeners to cards
   container.querySelectorAll('.job-card').forEach(card => {
-    card.addEventListener('click', (e) => {
-      if (!e.target.classList.contains('btn')) {
-        viewJobDetail(card.dataset.jobId);
-      }
-    });
-  });
-
-  // Add button event listeners
-  container.querySelectorAll('[data-action="apply"]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      applyToJob(e.currentTarget.dataset.jobId);
-    });
+    card.onclick = function(e) {
+      viewJobDetail(card.dataset.jobId);
+    };
   });
 }
 
@@ -85,31 +75,13 @@ function renderJobListings() {
  * Create job card HTML
  */
 function createJobCard(job) {
-  const isAuthenticated = authSystem.isAuthenticated();
-  const isCandidate = authSystem.isCandidate();
-
-  let actionButtons = '';
-
-  if (isAuthenticated && isCandidate) {
-    actionButtons = `
-      <button class="btn btn--secondary" data-action="apply" data-job-id="${job.id}">
-        Aplicar
-      </button>
-    `;
-  }
-
   return `
-    <div class="job-card" data-job-id="${job.id}">
+    <div class="job-card" data-job-id="${job.id}" style="cursor: pointer;">
       <h3 class="job-card__title">${Format.truncate(job.title, 50)}</h3>
       <div class="job-card__location">
         📍 ${job.location}
       </div>
       <p class="job-card__description">${Format.truncate(job.description, 100)}</p>
-      <div class="job-card__footer">
-        <div style="display: flex; gap: 0.5rem;">
-          ${actionButtons}
-        </div>
-      </div>
     </div>
   `;
 }

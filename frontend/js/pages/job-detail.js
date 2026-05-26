@@ -84,11 +84,12 @@ function setupDeleteButton() {
  */
 function setupBackButton() {
   const backBtn = document.getElementById('back-button');
-  if (backBtn) {
-    backBtn.onclick = function(e) {
-      e.preventDefault();
-      router.navigate('home');
-      return false;
-    };
-  }
+  if (!backBtn) return;
+
+  backBtn.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    router.navigate('home');
+    window.app?.updateNavLinks?.();
+  };
 }

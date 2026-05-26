@@ -9,10 +9,12 @@ from app.adapters.http.routers.application_router import router as application_r
 from app.adapters.http.routers.auth_router import router as auth_router, set_auth_service
 from app.adapters.persistence.mongodb_user_repository import MongoDBUserRepository
 from app.adapters.persistence.mongodb_job_offer_repository import MongoDBJobOfferRepository
+from app.adapters.persistence.mongodb_job_application_repository import MongoDBJobApplicationRepository
 from app.adapters.security.bcrypt_password_hasher import BcryptPasswordHasher
 from app.adapters.security.jwt_token_service import JWTTokenService
 from app.application.services.authentication_service import AuthenticationService
 from app.application.services.job_offer_service import JobOfferService
+from app.shared import dependencies
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -55,6 +57,10 @@ else:
         # Initialize repositories
         user_repository = MongoDBUserRepository(mongodb_url, mongodb_database)
         job_offer_repository = MongoDBJobOfferRepository(mongodb_url, mongodb_database)
+        application_repository = MongoDBJobApplicationRepository(user_repository.db)
+        
+        # Update the dependencies module with the MongoDB repository
+        dependencies.application_repository = application_repository
         
         # Initialize security services
         password_hasher = BcryptPasswordHasher(rounds=12)

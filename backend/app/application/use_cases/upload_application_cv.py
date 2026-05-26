@@ -23,7 +23,7 @@ class UploadApplicationCV:
         job_application = self.application_repository.find_by_id(application_id)
 
         if not job_application:
-            raise ValueError("JobApplication not found")
+            raise ValueError(f"JobApplication not found: {application_id}")
 
         storage_key = self.file_storage.save(
             file_bytes=file_bytes,

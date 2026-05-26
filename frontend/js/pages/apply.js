@@ -143,11 +143,12 @@ async function handleApplicationSubmit() {
  */
 function setupBackButton() {
   const backBtn = document.getElementById('back-from-apply');
-  if (backBtn) {
-    backBtn.onclick = function(e) {
-      e.preventDefault();
-      router.navigate('job-detail', { job: applicationJob });
-      return false;
-    };
-  }
+  if (!backBtn) return;
+
+  backBtn.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    router.navigate('job-detail', { job: applicationJob });
+    window.app?.updateNavLinks?.();
+  };
 }

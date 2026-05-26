@@ -399,6 +399,7 @@ body {
 .filter-bar {
   display: flex;
   justify-content: center;
+  margin-top: var(--spacing-2xl);
   margin-bottom: var(--spacing-xl);
 }
 
