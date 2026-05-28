@@ -34,12 +34,21 @@ class UploadApplicationCV:
         if not job_application:
             raise ValueError(f"JobApplication not found: {application_id}")
 
+        uploaded_at = datetime.utcnow()
+        size_bytes = len(file_bytes)
         storage_key = self.file_storage.save(
             file_bytes=file_bytes,
             folder=application_id,
             filename=original_filename,
+            content_type=content_type,
+            metadata={
+                "application_id": application_id,
+                "original_filename": original_filename,
+                "content_type": content_type,
+                "uploaded_at": uploaded_at,
+                "size_bytes": size_bytes,
+            },
         )
-        size_bytes = len(file_bytes)
         logger.info(
             "CV upload saved: application_id=%s storage_key=%s size_bytes=%s",
             application_id,
@@ -51,6 +60,6 @@ class UploadApplicationCV:
         job_application.cv_storage_key = storage_key
         job_application.cv_content_type = content_type
         job_application.cv_size_bytes = size_bytes
-        job_application.cv_uploaded_at = datetime.utcnow()
+        job_application.cv_uploaded_at = uploaded_at
 
         return self.application_repository.update(job_application)

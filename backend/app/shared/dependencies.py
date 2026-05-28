@@ -14,7 +14,12 @@ from app.adapters.persistence.in_memory.in_memory_job_offer_repository import (
 from app.adapters.persistence.in_memory.in_memory_job_application_repository import (
     InMemoryJobApplicationRepository,
 )
+import os
+
+from pymongo import MongoClient
+
 from app.adapters.storage.local_file_storage import LocalFileStorage
+from app.adapters.storage.mongodb_gridfs_file_storage import MongoGridFSFileStorage
 from app.adapters.cv_processing.pdf_cv_text_extractor import PDFCVTextExtractor
 from app.adapters.ai.simple_cv_analyzer import SimpleCVAnalyzer
 from app.adapters.agent.agentcore_cv_analyzer import AgentCoreCVAnalyzer
@@ -24,7 +29,17 @@ from app.shared.config import get_cv_analyzer_config, CVAnalyzerProvider
 
 job_offer_repository = InMemoryJobOfferRepository()
 application_repository = InMemoryJobApplicationRepository()
-file_storage = LocalFileStorage()
+mongodb_url = os.getenv("MONGODB_URL")
+mongodb_database = os.getenv("MONGODB_DATABASE", "ai-recruitment-platform")
+
+if mongodb_url:
+    try:
+        mongo_client = MongoClient(mongodb_url)
+        file_storage = MongoGridFSFileStorage(mongo_client[mongodb_database])
+    except Exception:
+        file_storage = LocalFileStorage()
+else:
+    file_storage = LocalFileStorage()
 cv_text_extractor = PDFCVTextExtractor()
 
 

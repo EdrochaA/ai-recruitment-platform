@@ -8,6 +8,8 @@ class FileStorage(ABC):
         file_bytes: bytes,
         folder: str,
         filename: str,
+        content_type: str | None = None,
+        metadata: dict | None = None,
     ) -> str:
         """Returns storage key/path"""
         pass
