@@ -10,6 +10,7 @@ from app.adapters.http.routers.auth_router import router as auth_router, set_aut
 from app.adapters.persistence.mongodb_user_repository import MongoDBUserRepository
 from app.adapters.persistence.mongodb_job_offer_repository import MongoDBJobOfferRepository
 from app.adapters.persistence.mongodb_job_application_repository import MongoDBJobApplicationRepository
+from app.adapters.storage.mongodb_gridfs_file_storage import MongoGridFSFileStorage
 from app.adapters.security.bcrypt_password_hasher import BcryptPasswordHasher
 from app.adapters.security.jwt_token_service import JWTTokenService
 from app.application.services.authentication_service import AuthenticationService
@@ -59,8 +60,9 @@ else:
         job_offer_repository = MongoDBJobOfferRepository(mongodb_url, mongodb_database)
         application_repository = MongoDBJobApplicationRepository(user_repository.db)
         
-        # Update the dependencies module with the MongoDB repository
+        # Update the dependencies module with the MongoDB repository and file storage
         dependencies.application_repository = application_repository
+        dependencies.file_storage = MongoGridFSFileStorage(user_repository.db)
         
         # Initialize security services
         password_hasher = BcryptPasswordHasher(rounds=12)
