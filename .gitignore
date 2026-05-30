@@ -50,6 +50,8 @@ frontend/node_modules/
 # Backend
 storage/
 */storage/
+!backend/app/adapters/storage/
+!backend/app/adapters/storage/*.py
 *.pdf
 test_*.py
 create_test_*.py
