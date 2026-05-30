@@ -1,10 +1,14 @@
 from datetime import datetime
+import logging
 from typing import Any
 
 from gridfs import GridFS
 from pymongo.database import Database
 
 from app.domain.ports.file_storage import FileStorage
+
+
+logger = logging.getLogger(__name__)
 
 
 class MongoGridFSFileStorage(FileStorage):
@@ -19,13 +23,15 @@ class MongoGridFSFileStorage(FileStorage):
         content_type: str | None = None,
         metadata: dict | None = None,
     ) -> str:
-        extra_metadata: dict[str, Any] = dict(metadata or {})
-        extra_metadata.setdefault("application_id", folder)
-        extra_metadata.setdefault("original_filename", filename)
-        if content_type:
-            extra_metadata.setdefault("content_type", content_type)
-        extra_metadata.setdefault("uploaded_at", datetime.utcnow())
-        extra_metadata.setdefault("size_bytes", len(file_bytes))
+        logger.info("CV upload started: folder=%s filename=%s", folder, filename)
+
+        extra_metadata: dict[str, Any] = {
+            "filename": filename,
+            "folder": folder,
+            "content_type": content_type,
+            "uploaded_at": datetime.utcnow(),
+            **dict(metadata or {}),
+        }
 
         file_id = self.fs.put(
             file_bytes,
@@ -33,4 +39,8 @@ class MongoGridFSFileStorage(FileStorage):
             content_type=content_type,
             metadata=extra_metadata,
         )
+
+        logger.info("CV saved in GridFS: filename=%s", filename)
+        logger.info("GridFS file_id=%s", file_id)
+
         return str(file_id)

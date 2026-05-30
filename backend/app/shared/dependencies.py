@@ -14,6 +14,9 @@ from app.adapters.persistence.in_memory.in_memory_job_offer_repository import (
 from app.adapters.persistence.in_memory.in_memory_job_application_repository import (
     InMemoryJobApplicationRepository,
 )
+from app.adapters.persistence.mongodb_job_offer_repository import (
+    MongoDBJobOfferRepository,
+)
 from app.adapters.persistence.mongodb_job_application_repository import (
     MongoDBJobApplicationRepository,
 )
@@ -21,6 +24,7 @@ import os
 
 from pymongo import MongoClient
 
+from app.adapters.storage.local_file_storage import LocalFileStorage
 from app.adapters.storage.mongodb_gridfs_file_storage import MongoGridFSFileStorage
 from app.adapters.cv_processing.pdf_cv_text_extractor import PDFCVTextExtractor
 from app.adapters.ai.simple_cv_analyzer import SimpleCVAnalyzer
@@ -31,7 +35,7 @@ from app.shared.config import get_cv_analyzer_config, CVAnalyzerProvider
 
 job_offer_repository = InMemoryJobOfferRepository()
 application_repository = InMemoryJobApplicationRepository()
-file_storage = None
+file_storage = LocalFileStorage()
 mongodb_url = os.getenv("MONGODB_URL")
 mongodb_database = os.getenv("MONGODB_DATABASE", "ai-recruitment-platform")
 
@@ -39,10 +43,13 @@ if mongodb_url:
     try:
         mongo_client = MongoClient(mongodb_url)
         mongo_db = mongo_client[mongodb_database]
+        job_offer_repository = MongoDBJobOfferRepository(mongodb_url, mongodb_database)
         application_repository = MongoDBJobApplicationRepository(mongo_db)
         file_storage = MongoGridFSFileStorage(mongo_db)
-    except Exception as exc:
-        raise RuntimeError("MongoDB está configurado pero no se pudo inicializar GridFS") from exc
+    except Exception:
+        job_offer_repository = InMemoryJobOfferRepository()
+        application_repository = InMemoryJobApplicationRepository()
+        file_storage = LocalFileStorage()
 cv_text_extractor = PDFCVTextExtractor()
 
 

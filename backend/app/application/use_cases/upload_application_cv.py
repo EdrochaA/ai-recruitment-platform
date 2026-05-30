@@ -25,41 +25,41 @@ class UploadApplicationCV:
         file_bytes: bytes,
     ) -> JobApplication:
         logger.info(
-            "CV upload start: application_id=%s original_filename=%s",
+            "CV upload started: application_id=%s original_filename=%s",
             application_id,
             original_filename,
         )
-        job_application = self.application_repository.find_by_id(application_id)
+        application = self.application_repository.find_by_id(application_id)
 
-        if not job_application:
+        if not application:
             raise ValueError(f"JobApplication not found: {application_id}")
 
         uploaded_at = datetime.utcnow()
         size_bytes = len(file_bytes)
         storage_key = self.file_storage.save(
             file_bytes=file_bytes,
-            folder=application_id,
+            folder=application.id,
             filename=original_filename,
             content_type=content_type,
             metadata={
-                "application_id": application_id,
-                "original_filename": original_filename,
-                "content_type": content_type,
-                "uploaded_at": uploaded_at,
+                "application_id": application.id,
+                "candidate_email": application.candidate_email,
                 "size_bytes": size_bytes,
             },
         )
         logger.info(
-            "CV upload saved: application_id=%s storage_key=%s size_bytes=%s",
+            "CV saved in GridFS: application_id=%s storage_key=%s",
             application_id,
             storage_key,
-            size_bytes,
         )
+        logger.info("GridFS file_id=%s", storage_key)
 
-        job_application.cv_original_filename = original_filename
-        job_application.cv_storage_key = storage_key
-        job_application.cv_content_type = content_type
-        job_application.cv_size_bytes = size_bytes
-        job_application.cv_uploaded_at = uploaded_at
+        application.cv_original_filename = original_filename
+        application.cv_storage_key = storage_key
+        application.cv_content_type = content_type
+        application.cv_size_bytes = size_bytes
+        application.cv_uploaded_at = uploaded_at
 
-        return self.application_repository.update(job_application)
+        updated_application = self.application_repository.update(application)
+        logger.info("Application updated: application_id=%s", application_id)
+        return updated_application
