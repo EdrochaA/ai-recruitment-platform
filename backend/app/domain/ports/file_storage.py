@@ -13,3 +13,8 @@ class FileStorage(ABC):
     ) -> str:
         """Returns storage key/path"""
         pass
+
+    @abstractmethod
+    def get(self, storage_key: str) -> bytes:
+        """Returns file bytes by storage key/path"""
+        pass

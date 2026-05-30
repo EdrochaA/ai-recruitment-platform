@@ -159,6 +159,39 @@ class APIClient {
     }
   }
 
+  getCVDownloadUrl(applicationId) {
+    return `${this.baseURL}/applications/${applicationId}/cv/download`;
+  }
+
+  async openCV(applicationId) {
+    const url = this.getCVDownloadUrl(applicationId);
+    const headers = {};
+    const token = this.getAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw {
+        status: response.status,
+        message: errorData.detail || 'No se pudo abrir el CV',
+        data: errorData,
+      };
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const newWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    if (!newWindow) {
+      URL.revokeObjectURL(objectUrl);
+      throw new Error('El navegador bloqueó la apertura del CV');
+    }
+
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+  }
+
   /**
    * Health check
    */

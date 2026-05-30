@@ -27,3 +27,6 @@ class LocalFileStorage(FileStorage):
         file_path.write_bytes(file_bytes)
 
         return str(file_path)
+
+    def get(self, storage_key: str) -> bytes:
+        return Path(storage_key).read_bytes()

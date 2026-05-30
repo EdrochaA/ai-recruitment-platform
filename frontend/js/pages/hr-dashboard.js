@@ -230,7 +230,10 @@ function renderOfferDetailsPanel(job) {
             <th>Candidato</th>
             <th>Email</th>
             <th>CV</th>
+            <th>Tamaño</th>
             <th>Fecha</th>
+            <th>Estado CV</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -238,8 +241,13 @@ function renderOfferDetailsPanel(job) {
             <tr>
               <td>${app.candidate_name}</td>
               <td>${app.candidate_email}</td>
-              <td>${app.cv_original_filename ? app.cv_original_filename : '-'}</td>
-              <td>${Format.date(app.created_at)}</td>
+              <td>${app.cv_original_filename ? `<strong>${app.cv_original_filename}</strong>` : '-'}</td>
+              <td>${app.cv_size_bytes ? Format.fileSize(app.cv_size_bytes) : '-'}</td>
+              <td>${Format.dateTime(app.cv_uploaded_at || app.created_at)}</td>
+              <td>${getStatusBadge(app.cv_processing_status || 'pending')}</td>
+              <td>
+                ${app.cv_storage_key ? `<button class="btn btn--secondary" onclick="openApplicationCV('${app.id}')">Abrir CV</button>` : '-'}
+              </td>
             </tr>
           `).join('')}
         </tbody>
@@ -319,6 +327,15 @@ function renderOfferDetailsPanel(job) {
   
   contentDiv.innerHTML = content;
 }
+
+window.openApplicationCV = async function(applicationId) {
+  try {
+    await apiClient.openCV(applicationId);
+  } catch (error) {
+    console.error('Error opening CV:', error);
+    UI.showError(error.message || 'No se pudo abrir el CV');
+  }
+};
 
 /**
  * Close offer status

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import Response
 
 from app.application.use_cases.create_application import CreateApplication
 from app.application.use_cases.list_applications_by_job_offer import (
@@ -20,6 +21,7 @@ from app.shared.dependencies import (
     get_process_application_cv_use_case,
     get_analyze_application_cv_use_case,
 )
+from app.shared.dependency_container import get_container
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
@@ -172,3 +174,41 @@ def analyze_application_cv(
             status_code=status_code,
             detail=error_detail,
         ) from exc
+
+
+@router.get(
+    "/{application_id}/cv/download",
+    status_code=status.HTTP_200_OK,
+)
+def download_application_cv(application_id: str):
+    container = get_container()
+    application = container.application_repository.find_by_id(application_id)
+
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"JobApplication not found: {application_id}",
+        )
+
+    if not application.cv_storage_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV not found for this application",
+        )
+
+    try:
+        file_bytes = container.file_storage.get(application.cv_storage_key)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV file could not be retrieved",
+        ) from exc
+
+    filename = application.cv_original_filename or "cv.pdf"
+    return Response(
+        content=file_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+        },
+    )

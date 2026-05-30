@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from typing import Any
+from bson import ObjectId
 
 from gridfs import GridFS
 from pymongo.database import Database
@@ -44,3 +45,8 @@ class MongoGridFSFileStorage(FileStorage):
         logger.info("GridFS file_id=%s", file_id)
 
         return str(file_id)
+
+    def get(self, storage_key: str) -> bytes:
+        logger.info("Fetching CV from GridFS: storage_key=%s", storage_key)
+        grid_out = self.fs.get(ObjectId(storage_key))
+        return grid_out.read()
