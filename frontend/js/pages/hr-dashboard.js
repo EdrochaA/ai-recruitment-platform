@@ -329,10 +329,20 @@ function renderOfferDetailsPanel(job) {
 }
 
 window.openApplicationCV = async function(applicationId) {
+  if (!apiClient || typeof apiClient.openCV !== 'function') {
+    UI.showError('La descarga de CV no está disponible todavía en el backend.');
+    return;
+  }
+
   try {
     await apiClient.openCV(applicationId);
   } catch (error) {
     console.error('Error opening CV:', error);
+    if (error?.status === 404) {
+      UI.showError('El endpoint de descarga o el CV no está disponible todavía.');
+      return;
+    }
+
     UI.showError(error.message || 'No se pudo abrir el CV');
   }
 };
@@ -458,8 +468,10 @@ function renderApplications(jobId) {
           <th>Candidato</th>
           <th>Correo</th>
           <th>CV</th>
-          <th>Estado CV</th>
+          <th>Tamaño</th>
           <th>Fecha</th>
+          <th>Estado CV</th>
+          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -468,8 +480,12 @@ function renderApplications(jobId) {
             <td>${app.candidate_name}</td>
             <td>${app.candidate_email}</td>
             <td>${app.cv_original_filename ? `<strong>${app.cv_original_filename}</strong>` : '-'}</td>
-            <td>${getStatusBadge(app.cv_processing_status)}</td>
-            <td>${Format.date(app.created_at)}</td>
+            <td>${app.cv_size_bytes ? Format.fileSize(app.cv_size_bytes) : '-'}</td>
+            <td>${Format.dateTime(app.cv_uploaded_at || app.created_at)}</td>
+            <td>${getStatusBadge(app.cv_processing_status || 'pending')}</td>
+            <td>
+              ${app.cv_storage_key ? `<button class="btn btn--secondary" onclick="openApplicationCV('${app.id}')">Abrir CV</button>` : '-'}
+            </td>
           </tr>
         `).join('')}
       </tbody>
