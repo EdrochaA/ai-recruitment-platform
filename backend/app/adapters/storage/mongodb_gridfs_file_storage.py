@@ -1,7 +1,9 @@
 from datetime import datetime
 import logging
 from typing import Any
+from pathlib import Path
 from bson import ObjectId
+from bson.errors import InvalidId
 
 from gridfs import GridFS
 from pymongo.database import Database
@@ -48,5 +50,21 @@ class MongoGridFSFileStorage(FileStorage):
 
     def get(self, storage_key: str) -> bytes:
         logger.info("Fetching CV from GridFS: storage_key=%s", storage_key)
-        grid_out = self.fs.get(ObjectId(storage_key))
+        try:
+            file_id = ObjectId(storage_key)
+        except (InvalidId, TypeError) as exc:
+            legacy_path = Path(storage_key)
+            if legacy_path.exists() and legacy_path.is_file():
+                logger.warning(
+                    "Legacy local CV path detected; serving from local filesystem: %s",
+                    storage_key,
+                )
+                return legacy_path.read_bytes()
+
+            raise ValueError(f"Invalid GridFS storage key: {storage_key}") from exc
+
+        if not self.fs.exists(file_id):
+            raise FileNotFoundError(f"GridFS file not found: {storage_key}")
+
+        grid_out = self.fs.get(file_id)
         return grid_out.read()

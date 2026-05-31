@@ -6,6 +6,8 @@
 let hrJobs = [];
 let selectedJobId = null;
 let allApplications = {};
+let myOffersSearchTerm = '';
+let myOffersSearchTimeout = null;
 
 /**
  * Initialize HR dashboard
@@ -15,6 +17,7 @@ window.initHrDashboard = async function() {
   setupTabs();
   setupCreateOfferForm();
   setupDetailsPanel();
+  setupMyOffersSearch();
 };
 
 /**
@@ -44,15 +47,19 @@ async function loadHRJobs() {
 function renderMyOffers() {
   const container = document.getElementById('my-offers-list');
   const emptyState = document.getElementById('my-offers-empty');
+  const filteredJobs = hrJobs.filter(job => {
+    const searchable = `${job.title || ''} ${job.company || ''} ${job.location || ''}`.toLowerCase();
+    return searchable.includes(myOffersSearchTerm);
+  });
 
-  if (hrJobs.length === 0) {
+  if (filteredJobs.length === 0) {
     container.innerHTML = '';
     emptyState.style.display = 'block';
     return;
   }
 
   emptyState.style.display = 'none';
-  container.innerHTML = hrJobs.map(job => createOfferCard(job)).join('');
+  container.innerHTML = filteredJobs.map(job => createOfferCard(job)).join('');
 
   // Add click listeners to all cards
   container.querySelectorAll('.job-card').forEach(card => {
@@ -68,22 +75,18 @@ function renderMyOffers() {
  */
 function createOfferCard(job) {
   return `
-    <div class="job-card" data-job-id="${job.id}" style="cursor: pointer;">
-      <h3 class="job-card__title">${Format.truncate(job.title, 50)}</h3>
-      <div class="job-card__location">
-        📍 ${job.location}
-      </div>
-      <p class="job-card__description">${Format.truncate(job.description, 100)}</p>
-      <div class="job-card__footer">
-        <div class="job-card__meta">
-          <span class="badge badge--${job.status?.toLowerCase() || 'open'}">${job.status || 'Abierta'}</span>
-          <span style="font-size: 0.75rem; color: var(--gray-500);">ID: ${job.id.substring(0, 8)}</span>
-        </div>
-      </div>
-      <div style="font-size: 0.85rem; color: var(--primary); margin-top: 8px;">
-        Haz clic para ver detalles →
-      </div>
-    </div>
+    <article class="job-card" data-job-id="${job.id}" style="cursor: pointer;">
+      <header class="job-card__header">
+        <h3 class="job-card__title">${Format.truncate(job.title, 50)}</h3>
+      </header>
+      <section class="job-card__body">
+        <p class="job-card__location">📍 ${job.location || '-'}</p>
+        <p class="job-card__description">${Format.truncate(job.description || '-', 100)}</p>
+      </section>
+      <footer class="job-card__footer">
+        <div class="job-card__meta"></div>
+      </footer>
+    </article>
   `;
 }
 
@@ -163,11 +166,29 @@ function setupDetailsPanel() {
   // Close when clicking outside
   if (detailsPanel) {
     detailsPanel.onclick = function(e) {
-      if (e.target === detailsPanel) {
+      const clickedOverlay = e.target?.classList?.contains('modal__overlay');
+      if (e.target === detailsPanel || clickedOverlay) {
         closeOfferDetails();
       }
     };
   }
+}
+
+function setupMyOffersSearch() {
+  const searchInput = document.getElementById('my-offers-search');
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', (event) => {
+    if (myOffersSearchTimeout) {
+      clearTimeout(myOffersSearchTimeout);
+    }
+
+    const nextValue = (event.target.value || '').trim().toLowerCase();
+    myOffersSearchTimeout = setTimeout(() => {
+      myOffersSearchTerm = nextValue;
+      renderMyOffers();
+    }, 200);
+  });
 }
 
 /**
@@ -182,8 +203,10 @@ async function showOfferDetails(jobId) {
   // Load applications
   try {
     UI.showLoading();
-    const applications = await apiClient.getApplicationsByJobOffer(jobId);
-    allApplications[jobId] = applications || [];
+    const applicationsResponse = await apiClient.getApplicationsByJobOffer(jobId);
+    const applications = Array.isArray(applicationsResponse) ? applicationsResponse : [];
+    allApplications[jobId] = applications;
+    console.log('Applications loaded:', applications);
     UI.hideLoading();
   } catch (error) {
     console.error('Error loading applications:', error);
@@ -220,38 +243,26 @@ function renderOfferDetailsPanel(job) {
   if (!contentDiv) return;
   
   const applications = allApplications[job.id] || [];
+  console.log('Applications loaded:', applications);
   
   const applicationsHtml = applications.length > 0 ? `
     <div class="offer-detail__section">
       <h3>Candidaturas (${applications.length})</h3>
-      <table class="applications-table" style="width: 100%; margin-top: 10px;">
-        <thead>
-          <tr>
-            <th>Candidato</th>
-            <th>Email</th>
-            <th>CV</th>
-            <th>Tamaño</th>
-            <th>Fecha</th>
-            <th>Estado CV</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${applications.map(app => `
-            <tr>
-              <td>${app.candidate_name}</td>
-              <td>${app.candidate_email}</td>
-              <td>${app.cv_original_filename ? `<strong>${app.cv_original_filename}</strong>` : '-'}</td>
-              <td>${app.cv_size_bytes ? Format.fileSize(app.cv_size_bytes) : '-'}</td>
-              <td>${Format.dateTime(app.cv_uploaded_at || app.created_at)}</td>
-              <td>${getStatusBadge(app.cv_processing_status || 'pending')}</td>
-              <td>
-                ${app.cv_storage_key ? `<button class="btn btn--secondary" onclick="openApplicationCV('${app.id}')">Abrir CV</button>` : '-'}
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <div class="applications-list" style="display: grid; gap: 10px; margin-top: 10px;">
+        ${applications.map(app => `
+          <article class="application-card" style="border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px;">
+            <h4 style="margin: 0 0 6px 0;">${app.candidate_name || '-'}</h4>
+            <p style="margin: 2px 0;"><strong>Email:</strong> ${app.candidate_email || '-'}</p>
+            <p style="margin: 2px 0;"><strong>CV:</strong> ${app.cv_original_filename || 'Sin CV'}</p>
+            <p style="margin: 2px 0;"><strong>Tamaño:</strong> ${app.cv_size_bytes ? Format.fileSize(app.cv_size_bytes) : '-'}</p>
+            <p style="margin: 2px 0;"><strong>Fecha:</strong> ${Format.dateTime(app.cv_uploaded_at || app.created_at)}</p>
+            <p style="margin: 2px 0;"><strong>Estado:</strong> ${app.cv_processing_status || 'Pendiente'}</p>
+            <div style="margin-top: 8px;">
+              ${getCVActionHtml(app)}
+            </div>
+          </article>
+        `).join('')}
+      </div>
     </div>
   ` : `
     <div class="offer-detail__section">
@@ -268,7 +279,6 @@ function renderOfferDetailsPanel(job) {
           <h2>${job.title}</h2>
           <p class="offer-detail__company">${job.company}</p>
         </div>
-        <span class="badge badge--${job.status?.toLowerCase() || 'open'}">${job.status || 'Abierta'}</span>
       </div>
       
       <div class="offer-detail__sections">
@@ -313,7 +323,7 @@ function renderOfferDetailsPanel(job) {
         <div class="offer-detail__section">
           <h3>Acciones</h3>
           <div style="display: flex; gap: 10px;">
-            <button class="btn btn--secondary" onclick="closeOfferDetails()">Cerrar Panel</button>
+            ${applications.length > 0 ? `<button class="btn btn--primary" onclick="downloadAllCVs('${job.id}', '${job.title || 'oferta'}')">Descargar todos los CVs</button>` : ''}
             ${job.status === 'open' ? `
               <button class="btn btn--warning" onclick="closeOfferStatus()">Cerrar Oferta</button>
             ` : ''}
@@ -433,8 +443,10 @@ async function loadApplicationsForJob(jobId) {
   try {
     UI.showLoading();
 
-    const applications = await apiClient.getApplicationsByJobOffer(jobId);
-    allApplications[jobId] = applications || [];
+    const applicationsResponse = await apiClient.getApplicationsByJobOffer(jobId);
+    const applications = Array.isArray(applicationsResponse) ? applicationsResponse : [];
+    allApplications[jobId] = applications;
+    console.log('Applications loaded:', applications);
 
     renderApplications(jobId);
     UI.hideLoading();
@@ -452,6 +464,7 @@ function renderApplications(jobId) {
   const container = document.getElementById('applications-list');
   const emptyState = document.getElementById('applications-empty');
   const applications = allApplications[jobId] || [];
+  console.log('Applications loaded:', applications);
 
   if (applications.length === 0) {
     container.innerHTML = '';
@@ -462,34 +475,21 @@ function renderApplications(jobId) {
   emptyState.style.display = 'none';
 
   const html = `
-    <table class="applications-table">
-      <thead>
-        <tr>
-          <th>Candidato</th>
-          <th>Correo</th>
-          <th>CV</th>
-          <th>Tamaño</th>
-          <th>Fecha</th>
-          <th>Estado CV</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${applications.map(app => `
-          <tr>
-            <td>${app.candidate_name}</td>
-            <td>${app.candidate_email}</td>
-            <td>${app.cv_original_filename ? `<strong>${app.cv_original_filename}</strong>` : '-'}</td>
-            <td>${app.cv_size_bytes ? Format.fileSize(app.cv_size_bytes) : '-'}</td>
-            <td>${Format.dateTime(app.cv_uploaded_at || app.created_at)}</td>
-            <td>${getStatusBadge(app.cv_processing_status || 'pending')}</td>
-            <td>
-              ${app.cv_storage_key ? `<button class="btn btn--secondary" onclick="openApplicationCV('${app.id}')">Abrir CV</button>` : '-'}
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
+    <div class="applications-list" style="display: grid; gap: 10px;">
+      ${applications.map(app => `
+        <article class="application-card" style="border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px;">
+          <h4 style="margin: 0 0 6px 0;">${app.candidate_name || '-'}</h4>
+          <p style="margin: 2px 0;"><strong>Email:</strong> ${app.candidate_email || '-'}</p>
+          <p style="margin: 2px 0;"><strong>CV:</strong> ${app.cv_original_filename || 'Sin CV'}</p>
+          <p style="margin: 2px 0;"><strong>Tamaño:</strong> ${app.cv_size_bytes ? Format.fileSize(app.cv_size_bytes) : '-'}</p>
+          <p style="margin: 2px 0;"><strong>Fecha:</strong> ${Format.dateTime(app.cv_uploaded_at || app.created_at)}</p>
+          <p style="margin: 2px 0;"><strong>Estado:</strong> ${app.cv_processing_status || 'Pendiente'}</p>
+          <div style="margin-top: 8px;">
+            ${getCVActionHtml(app)}
+          </div>
+        </article>
+      `).join('')}
+    </div>
   `;
 
   container.innerHTML = html;
@@ -509,3 +509,52 @@ function getStatusBadge(status) {
   const statusInfo = statusMap[status] || { label: status || 'Desconocido', class: 'badge' };
   return `<span class="${statusInfo.class}">${statusInfo.label}</span>`;
 }
+
+function getCVActionHtml(app) {
+  if (!app?.cv_storage_key) {
+    return '';
+  }
+
+  const storageKey = String(app.cv_storage_key).toLowerCase();
+  const isLegacyLocalPath = storageKey.startsWith('storage/') || storageKey.startsWith('storage\\');
+
+  if (isLegacyLocalPath) {
+    return '<span class="badge badge--secondary">CV no disponible (test)</span>';
+  }
+
+  return `
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button class="btn btn--secondary" onclick="openApplicationCV('${app.id}')">Abrir CV</button>
+      <button class="btn btn--secondary" onclick="downloadApplicationCV('${app.id}')">Descargar</button>
+    </div>
+  `;
+}
+
+window.downloadApplicationCV = async function(applicationId) {
+  if (!apiClient || typeof apiClient.downloadCV !== 'function') {
+    UI.showError('La descarga de CV no está disponible todavía.');
+    return;
+  }
+
+  try {
+    await apiClient.downloadCV(applicationId);
+  } catch (error) {
+    console.error('Error downloading CV:', error);
+    UI.showError(error.message || 'No se pudo descargar el CV');
+  }
+};
+
+window.downloadAllCVs = async function(jobOfferId, jobOfferTitle) {
+  if (!apiClient || typeof apiClient.downloadJobOfferCVs !== 'function') {
+    UI.showError('La descarga masiva de CVs no está disponible todavía.');
+    return;
+  }
+
+  try {
+    await apiClient.downloadJobOfferCVs(jobOfferId, jobOfferTitle);
+    UI.showSuccess(`CVs descargados en la carpeta ${jobOfferTitle || 'oferta'}`);
+  } catch (error) {
+    console.error('Error downloading all CVs:', error);
+    UI.showError(error.message || 'No se pudieron descargar los CVs');
+  }
+};

@@ -123,7 +123,21 @@ class APIClient {
   }
 
   async getApplicationsByJobOffer(jobOfferId) {
-    return this.request(`/applications/job-offer/${jobOfferId}`);
+    const response = await this.request(`/applications/job-offer/${jobOfferId}`);
+
+    if (Array.isArray(response)) {
+      return response;
+    }
+
+    if (response && Array.isArray(response.applications)) {
+      return response.applications;
+    }
+
+    if (response && response.data && Array.isArray(response.data.applications)) {
+      return response.data.applications;
+    }
+
+    return [];
   }
 
   async uploadCV(applicationId, file) {
@@ -163,6 +177,10 @@ class APIClient {
     return `${this.baseURL}/applications/${applicationId}/cv/download`;
   }
 
+  getJobOfferCVsDownloadUrl(jobOfferId) {
+    return `${this.baseURL}/applications/job-offer/${jobOfferId}/cvs/download`;
+  }
+
   async openCV(applicationId) {
     const url = this.getCVDownloadUrl(applicationId);
     const headers = {};
@@ -189,6 +207,71 @@ class APIClient {
       throw new Error('El navegador bloqueó la apertura del CV');
     }
 
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+  }
+
+  async downloadCV(applicationId) {
+    const url = this.getCVDownloadUrl(applicationId);
+    const headers = {};
+    const token = this.getAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw {
+        status: response.status,
+        message: errorData.detail || 'No se pudo descargar el CV',
+        data: errorData,
+      };
+    }
+
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = filenameMatch ? filenameMatch[1] : '';
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+  }
+
+  async downloadJobOfferCVs(jobOfferId, jobOfferTitle) {
+    const url = this.getJobOfferCVsDownloadUrl(jobOfferId);
+    const headers = {};
+    const token = this.getAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw {
+        status: response.status,
+        message: errorData.detail || 'No se pudieron descargar los CVs',
+        data: errorData,
+      };
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    const safeTitle = (jobOfferTitle || jobOfferId)
+      .replace(/[\\/:*?"<>|]+/g, '_')
+      .trim();
+    anchor.download = `${safeTitle || jobOfferId}.zip`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
     setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
   }
 

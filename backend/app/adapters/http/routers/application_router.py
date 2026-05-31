@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
+from io import BytesIO
+import inspect
+import re
+import zipfile
 
 from app.application.use_cases.create_application import CreateApplication
 from app.application.use_cases.list_applications_by_job_offer import (
@@ -199,9 +203,10 @@ def download_application_cv(application_id: str):
     try:
         file_bytes = container.file_storage.get(application.cv_storage_key)
     except Exception as exc:
+        error_detail = f"CV file could not be retrieved (storage_key={application.cv_storage_key})"
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="CV file could not be retrieved",
+            detail=error_detail,
         ) from exc
 
     filename = application.cv_original_filename or "cv.pdf"
@@ -210,5 +215,78 @@ def download_application_cv(application_id: str):
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
+        },
+    )
+
+
+def _resolve_job_offer(job_offer_repository, job_offer_id: str):
+    """Resolve job offer from repositories that may expose async or sync APIs."""
+    if hasattr(job_offer_repository, "get_job_offer"):
+        result = job_offer_repository.get_job_offer(job_offer_id)
+        if inspect.isawaitable(result):
+            return result
+        return result
+
+    if hasattr(job_offer_repository, "find_by_id"):
+        return job_offer_repository.find_by_id(job_offer_id)
+
+    return None
+
+
+@router.get(
+    "/job-offer/{job_offer_id}/cvs/download",
+    status_code=status.HTTP_200_OK,
+)
+def download_job_offer_cvs(job_offer_id: str):
+    container = get_container()
+
+    job_offer_result = _resolve_job_offer(container.job_offer_repository, job_offer_id)
+    if inspect.isawaitable(job_offer_result):
+        import asyncio
+
+        job_offer = asyncio.run(job_offer_result)
+    else:
+        job_offer = job_offer_result
+
+    if not job_offer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"JobOffer not found: {job_offer_id}",
+        )
+
+    applications = container.application_repository.find_by_job_offer(job_offer_id)
+    applications_with_cv = [app for app in applications if app.cv_storage_key]
+
+    if not applications_with_cv:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No CVs available for this job offer",
+        )
+
+    safe_offer_title = re.sub(r"[\\/:*?\"<>|]+", "_", (job_offer.title or "job-offer")).strip()
+    if not safe_offer_title:
+        safe_offer_title = "job-offer"
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        for index, application in enumerate(applications_with_cv, start=1):
+            try:
+                file_bytes = container.file_storage.get(application.cv_storage_key)
+            except Exception:
+                continue
+
+            cv_filename = application.cv_original_filename or f"cv-{index}.pdf"
+            cv_filename = re.sub(r"[\\/:*?\"<>|]+", "_", cv_filename)
+            arcname = f"{safe_offer_title}/{cv_filename}"
+            zip_file.writestr(arcname, file_bytes)
+
+    zip_buffer.seek(0)
+    zip_filename = f"{safe_offer_title}.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_filename}"',
         },
     )
