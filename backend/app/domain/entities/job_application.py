@@ -27,6 +27,14 @@ class JobApplication:
     cv_analysis_summary: Optional[str] = None
     cv_analysis_skills: Optional[list[str]] = None
     cv_analysis_experience: Optional[str] = None
+    cv_analysis_candidate_name: Optional[str] = None
+    cv_analysis_education: Optional[list[str]] = None
+    cv_analysis_work_experience: Optional[list[str]] = None
+    cv_analysis_technical_skills: Optional[list[str]] = None
+    cv_analysis_soft_skills: Optional[list[str]] = None
+    cv_analysis_languages: Optional[list[str]] = None
+    cv_analysis_certifications: Optional[list[str]] = None
+    cv_analysis_warnings: Optional[list[str]] = None
     cv_analyzed_at: Optional[datetime] = None
     cv_analysis_error: Optional[str] = None
     

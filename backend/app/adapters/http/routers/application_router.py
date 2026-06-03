@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, Header
 from fastapi.responses import Response, StreamingResponse
 from io import BytesIO
 import inspect
@@ -157,11 +157,39 @@ def process_application_cv(
 def analyze_application_cv(
     application_id: str,
     use_case: AnalyzeApplicationCV = Depends(get_analyze_application_cv_use_case),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ):
     """Analyze CV using intelligent CV analyzer.
     
     Extracts skills, experience and compatibility score based on job requirements.
     """
+    container = get_container()
+    if not container.auth_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Auth service not configured",
+        )
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+
+    token = authorization.split(" ", 1)[1]
+    payload = container.auth_service.token_service.verify_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    if payload.get("role") not in {"hr", "admin"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only HR or admin can analyze CVs",
+        )
+
     try:
         application = use_case.execute(application_id=application_id)
         return ApplicationResponse(**application.__dict__)

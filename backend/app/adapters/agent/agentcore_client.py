@@ -89,6 +89,9 @@ class AgentCoreClient:
         self,
         cv_text: str,
         job_description: str,
+        application_id: str,
+        job_offer_id: str,
+        prompt: str,
         session_id: Optional[str] = None,
         actor_id: Optional[str] = None,
     ) -> dict:
@@ -118,17 +121,25 @@ class AgentCoreClient:
         try:
             if self.is_mock_mode:
                 logger.info("AgentCore provider is mock. Using mock analyzer.")
-                return self._mock_invoke(cv_text, job_description)
+                return self._mock_invoke(cv_text)
             else:
                 # Production: Call real AgentCore runtime
                 # This will be implemented in the next iteration
-                return self._real_invoke(cv_text, job_description, session_id, actor_id)
+                return self._real_invoke(
+                    cv_text=cv_text,
+                    job_description=job_description,
+                    application_id=application_id,
+                    job_offer_id=job_offer_id,
+                    prompt=prompt,
+                    session_id=session_id,
+                    actor_id=actor_id,
+                )
         
         except Exception as e:
             logger.error("Failed to invoke AgentCore CV analysis: %s", e)
             raise ValueError(f"AgentCore invocation failed: {e}")
 
-    def _mock_invoke(self, cv_text: str, job_description: str) -> dict:
+    def _mock_invoke(self, cv_text: str) -> dict:
         """Mock/stub implementation for local development.
         
         This serves as a placeholder showing the expected response structure,
@@ -139,36 +150,25 @@ class AgentCoreClient:
         """
         logger.info("Using mock AgentCore implementation for CV analysis")
         
-        # Simple heuristic: count skill keywords
-        common_skills = [
-            "python", "fastapi", "sql", "postgresql", "docker", "aws",
-            "java", "javascript", "react", "machine learning", "nlp", "git",
-        ]
-        
-        cv_lower = cv_text.lower()
-        job_lower = job_description.lower()
-        
-        detected_skills = [s for s in common_skills if s in cv_lower]
-        required_skills = [s for s in common_skills if s in job_lower]
-        
-        # Calculate mock score
-        if required_skills:
-            matched = set(detected_skills) & set(required_skills)
-            score = int((len(matched) / len(required_skills)) * 100)
-        else:
-            score = min(50, len(detected_skills) * 5)
-        
         return {
-            "skills": detected_skills,
-            "experience_summary": "Mock analysis: years of experience detected",
-            "score": min(100, score + 10),  # Slight boost for demo
-            "summary": f"Mock analysis shows {score}% compatibility with job requirements."
+            "candidate_name": "",
+            "professional_summary": "",
+            "education": [],
+            "work_experience": [],
+            "technical_skills": [],
+            "soft_skills": [],
+            "languages": [],
+            "certifications": [],
+            "warnings": ["Mock response; no structured extraction performed"],
         }
 
     def _real_invoke(
         self,
         cv_text: str,
         job_description: str,
+        application_id: str,
+        job_offer_id: str,
+        prompt: str,
         session_id: Optional[str] = None,
         actor_id: Optional[str] = None,
     ) -> dict:
@@ -221,8 +221,10 @@ class AgentCoreClient:
             
             # Prepare payload for AgentCore
             payload = {
+                "prompt": prompt,
+                "application_id": application_id,
+                "job_offer_id": job_offer_id,
                 "cv_text": cv_text,
-                "job_offer": job_description,
             }
             
             # Invoke AgentCore runtime
@@ -244,9 +246,8 @@ class AgentCoreClient:
             normalized = self._validate_and_normalize_response(parsed_json)
             
             logger.info(
-                "AgentCore analysis completed successfully. score=%s, skills=%s",
-                normalized["score"],
-                len(normalized["skills"]),
+                "AgentCore analysis completed successfully. warnings=%s",
+                len(normalized["warnings"]),
             )
             
             return normalized
@@ -497,7 +498,17 @@ class AgentCoreClient:
         Raises:
             ValueError: If required fields missing or invalid
         """
-        required_fields = {"skills", "score", "summary"}
+        required_fields = {
+            "candidate_name",
+            "professional_summary",
+            "education",
+            "work_experience",
+            "technical_skills",
+            "soft_skills",
+            "languages",
+            "certifications",
+            "warnings",
+        }
         
         # Check for required fields
         missing_fields = required_fields - set(parsed_json.keys())
@@ -509,49 +520,33 @@ class AgentCoreClient:
         
         # Normalize and validate each field
         try:
-            # skills: should be list of strings
-            skills = parsed_json.get("skills", [])
-            if isinstance(skills, str):
-                # Handle case where skills is comma-separated string
-                skills = [s.strip() for s in skills.split(",")]
-            if not isinstance(skills, list):
-                raise ValueError(f"skills must be list, got {type(skills)}")
-            skills = [str(s).strip() for s in skills if s]
-            
-            # experience_summary/experience: should be string
-            experience_summary = str(
-                parsed_json.get("experience_summary", parsed_json.get("experience", ""))
+            candidate_name = str(parsed_json.get("candidate_name", "")).strip()
+            professional_summary = str(
+                parsed_json.get("professional_summary", "")
             ).strip()
-            if not experience_summary:
-                experience_summary = "No experience summary provided"
-            
-            # score: should be integer 0-100
-            score = parsed_json.get("score")
-            if isinstance(score, str):
-                score = score.strip()
-                # Try to extract number from string
-                score_match = re.search(r"\d+", score)
-                if score_match:
-                    score = int(score_match.group())
-                else:
-                    score = 50  # Default fallback
-            
-            score = int(score)
-            if not 0 <= score <= 100:
-                logger.warning("Score %s outside 0-100 range, clamping", score)
-                score = max(0, min(100, score))
-            
-            # summary: should be string
-            summary = str(parsed_json.get("summary", "")).strip()
-            if not summary:
-                summary = "Analysis completed. No summary provided."
-            
-            # Return normalized dict
+
+            list_fields = [
+                "education",
+                "work_experience",
+                "technical_skills",
+                "soft_skills",
+                "languages",
+                "certifications",
+                "warnings",
+            ]
+            normalized_lists = {}
+            for field in list_fields:
+                value = parsed_json.get(field, [])
+                if isinstance(value, str):
+                    value = [v.strip() for v in value.split(",") if v.strip()]
+                if not isinstance(value, list):
+                    raise ValueError(f"{field} must be list, got {type(value)}")
+                normalized_lists[field] = [str(v).strip() for v in value if str(v).strip()]
+
             normalized = {
-                "skills": skills,
-                "experience_summary": experience_summary,
-                "score": score,
-                "summary": summary,
+                "candidate_name": candidate_name,
+                "professional_summary": professional_summary,
+                **normalized_lists,
             }
             
             logger.debug("Normalized response: %s", normalized)

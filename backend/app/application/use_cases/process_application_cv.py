@@ -3,6 +3,7 @@ from datetime import datetime
 
 from app.domain.entities.job_application import JobApplication
 from app.domain.ports.cv_text_extractor import CVTextExtractor
+from app.domain.ports.file_storage import FileStorage
 from app.domain.ports.job_application_repository import JobApplicationRepository
 
 logger = logging.getLogger("use-cases")
@@ -24,9 +25,11 @@ class ProcessApplicationCV:
         self,
         application_repository: JobApplicationRepository,
         cv_text_extractor: CVTextExtractor,
+        file_storage: FileStorage,
     ):
         self.application_repository = application_repository
         self.cv_text_extractor = cv_text_extractor
+        self.file_storage = file_storage
 
     def execute(self, application_id: str) -> JobApplication:
         """
@@ -41,7 +44,7 @@ class ProcessApplicationCV:
         Raises:
             ValueError: Si no existe, no tiene CV, o falla la extracción
         """
-        logger.info(f"Processing CV for application {application_id}")
+        logger.info("Processing CV for application %s", application_id)
         
         # 1. Buscar candidatura
         application = self.application_repository.find_by_id(application_id)
@@ -57,7 +60,11 @@ class ProcessApplicationCV:
         
         # 3. Intentar extraer texto
         try:
-            cv_text = self.cv_text_extractor.extract_text(application.cv_storage_key)
+            file_bytes = self.file_storage.get(application.cv_storage_key)
+            cv_text = self.cv_text_extractor.extract_text(
+                file_bytes,
+                filename=application.cv_original_filename,
+            )
             
             # 4. Actualizar aplicación con éxito
             application.cv_text = cv_text
@@ -65,11 +72,11 @@ class ProcessApplicationCV:
             application.cv_processed_at = datetime.utcnow()
             application.cv_processing_error = None
             
-            logger.info(f"Successfully processed CV for {application_id}")
+            logger.info("Successfully processed CV for %s", application_id)
         
         except (ValueError, IOError) as e:
             # 5. Actualizar aplicación con error
-            logger.error(f"Failed to process CV for {application_id}: {e}")
+            logger.error("Failed to process CV for %s: %s", application_id, e)
             application.cv_processing_status = "failed"
             application.cv_processing_error = str(e)
             application.cv_processed_at = datetime.utcnow()

@@ -51,7 +51,14 @@ class SimpleCVAnalyzer(CVAnalyzer):
         "scrum",
     }
 
-    def analyze(self, cv_text: str, job_description: str) -> CVAnalysisResult:
+    def analyze(
+        self,
+        cv_text: str,
+        job_description: str,
+        application_id: str,
+        job_offer_id: str,
+        prompt: str,
+    ) -> CVAnalysisResult:
         """Analiza un CV contra una descripción de puesto.
         
         Args:
@@ -62,39 +69,26 @@ class SimpleCVAnalyzer(CVAnalyzer):
             CVAnalysisResult con skills detectadas, score y resumen
         """
         try:
-            # Convertir a minúsculas para búsqueda insensible a mayúsculas
-            cv_lower = cv_text.lower()
-            job_lower = job_description.lower()
-
-            # Detectar skills en el CV
-            detected_skills = self._detect_skills(cv_lower)
-
-            # Detectar skills requeridos en la descripción
-            required_skills = self._detect_skills(job_lower)
-
-            # Calcular score de compatibilidad
-            score = self._calculate_score(detected_skills, required_skills)
-
-            # Generar resumen
-            experience_summary = self._extract_experience_summary(cv_text)
-            summary = self._generate_summary(detected_skills, required_skills, score)
-
             logger.info(
-                f"CV analyzed: {len(detected_skills)} skills detected, "
-                f"score: {score}/100, "
-                f"required skills match: {len(detected_skills & required_skills)}/{len(required_skills)}"
+                "Simple analyzer used (no structured extraction). application_id=%s",
+                application_id,
             )
 
             return CVAnalysisResult(
-                skills=sorted(list(detected_skills)),
-                experience_summary=experience_summary,
-                score=score,
-                summary=summary,
+                candidate_name="",
+                professional_summary="",
+                education=[],
+                work_experience=[],
+                technical_skills=[],
+                soft_skills=[],
+                languages=[],
+                certifications=[],
+                warnings=["Simple analyzer does not extract structured fields"],
                 analyzed_at=datetime.now(),
             )
 
         except Exception as e:
-            logger.error(f"Error analyzing CV: {e}")
+            logger.error("Error analyzing CV: %s", e)
             raise ValueError(f"Failed to analyze CV: {e}")
 
     def _detect_skills(self, text: str) -> set[str]:

@@ -1,4 +1,5 @@
 import logging
+from io import BytesIO
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -14,7 +15,7 @@ class PDFCVTextExtractor(CVTextExtractor):
     Implementa la interfaz CVTextExtractor del dominio.
     """
 
-    def extract_text(self, file_path: str) -> str:
+    def extract_text(self, file_bytes: bytes, filename: str | None = None) -> str:
         """
         Extrae texto de todas las páginas de un PDF.
         
@@ -29,18 +30,16 @@ class PDFCVTextExtractor(CVTextExtractor):
             IOError: Si hay error al leer el archivo
         """
         try:
-            path = Path(file_path)
-            
-            # Validar que el archivo existe
-            if not path.exists():
-                raise ValueError(f"File not found: {file_path}")
-            
-            # Validar extensión
-            if path.suffix.lower() != ".pdf":
-                raise ValueError(f"File is not a PDF: {file_path}")
+            if not file_bytes:
+                raise ValueError("PDF bytes are empty")
+
+            if filename:
+                path = Path(filename)
+                if path.suffix.lower() != ".pdf":
+                    raise ValueError(f"File is not a PDF: {filename}")
             
             # Abrir y leer PDF
-            pdf_reader = PdfReader(file_path)
+            pdf_reader = PdfReader(BytesIO(file_bytes))
             
             # Extraer texto de todas las páginas
             text_parts = []
@@ -55,7 +54,11 @@ class PDFCVTextExtractor(CVTextExtractor):
             # Concatenar todo el texto
             full_text = "\n".join(text_parts)
             
-            logger.info(f"Extracted {len(full_text)} characters from {len(pdf_reader.pages)} pages")
+            logger.info(
+                "Extracted %s characters from %s pages",
+                len(full_text),
+                len(pdf_reader.pages),
+            )
             
             return full_text
         
@@ -63,5 +66,5 @@ class PDFCVTextExtractor(CVTextExtractor):
             # Re-lanzar ValueError como está (validaciones)
             raise
         except Exception as e:
-            logger.error(f"Unexpected error extracting text from {file_path}: {e}")
+            logger.error("Unexpected error extracting text from PDF: %s", e)
             raise IOError(f"Failed to extract text from PDF: {e}")

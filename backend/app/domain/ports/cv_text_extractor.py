@@ -11,12 +11,13 @@ class CVTextExtractor(ABC):
     """
 
     @abstractmethod
-    def extract_text(self, file_path: str) -> str:
+    def extract_text(self, file_bytes: bytes, filename: str | None = None) -> str:
         """
         Extrae texto de un archivo PDF.
         
         Args:
-            file_path: Ruta local al archivo PDF
+            file_bytes: Contenido binario del PDF
+            filename: Nombre original del archivo (opcional)
         
         Returns:
             Texto extraído del PDF como string

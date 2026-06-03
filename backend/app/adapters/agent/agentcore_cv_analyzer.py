@@ -50,7 +50,17 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
     """
     
     # Required fields in AgentCore response
-    REQUIRED_RESPONSE_FIELDS = {"skills", "experience_summary", "score", "summary"}
+    REQUIRED_RESPONSE_FIELDS = {
+        "candidate_name",
+        "professional_summary",
+        "education",
+        "work_experience",
+        "technical_skills",
+        "soft_skills",
+        "languages",
+        "certifications",
+        "warnings",
+    }
     
     def __init__(
         self,
@@ -92,6 +102,9 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
         self,
         cv_text: str,
         job_description: str,
+        application_id: str,
+        job_offer_id: str,
+        prompt: str,
         session_id: Optional[str] = None,
         actor_id: Optional[str] = None,
     ) -> CVAnalysisResult:
@@ -120,6 +133,9 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
             response = self.client.invoke_cv_analysis(
                 cv_text=cv_text,
                 job_description=job_description,
+                application_id=application_id,
+                job_offer_id=job_offer_id,
+                prompt=prompt,
                 session_id=session_id,
                 actor_id=actor_id,
             )
@@ -131,9 +147,8 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
             result = self._transform_response(response)
             
             logger.info(
-                "AgentCore analysis complete: score=%s, skills=%s",
-                result.score,
-                len(result.skills),
+                "AgentCore analysis complete: warnings=%s",
+                len(result.warnings),
             )
             
             return result
@@ -167,32 +182,25 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
                 f"AgentCore response missing required fields: {missing_fields}"
             )
         
-        # Validate types
-        if not isinstance(response["skills"], list):
-            raise ValueError(
-                f"'skills' must be a list, got {type(response['skills']).__name__}"
-            )
-        
-        if not isinstance(response["skills"], list) or not all(
-            isinstance(s, str) for s in response["skills"]
-        ):
-            raise ValueError("'skills' must be a list of strings")
-        
-        if not isinstance(response["experience_summary"], str):
-            raise ValueError(
-                f"'experience_summary' must be a string, "
-                f"got {type(response['experience_summary']).__name__}"
-            )
-        
-        if not isinstance(response["score"], int) or not (0 <= response["score"] <= 100):
-            raise ValueError(
-                f"'score' must be an integer between 0-100, got {response['score']}"
-            )
-        
-        if not isinstance(response["summary"], str):
-            raise ValueError(
-                f"'summary' must be a string, got {type(response['summary']).__name__}"
-            )
+        if not isinstance(response["candidate_name"], str):
+            raise ValueError("'candidate_name' must be a string")
+        if not isinstance(response["professional_summary"], str):
+            raise ValueError("'professional_summary' must be a string")
+
+        list_fields = [
+            "education",
+            "work_experience",
+            "technical_skills",
+            "soft_skills",
+            "languages",
+            "certifications",
+            "warnings",
+        ]
+        for field in list_fields:
+            if not isinstance(response[field], list):
+                raise ValueError(f"'{field}' must be a list")
+            if not all(isinstance(item, str) for item in response[field]):
+                raise ValueError(f"'{field}' must be a list of strings")
 
     def _transform_response(self, response: dict) -> CVAnalysisResult:
         """Transform AgentCore response to domain model.
@@ -204,9 +212,14 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
             CVAnalysisResult domain object
         """
         return CVAnalysisResult(
-            skills=response["skills"],
-            experience_summary=response["experience_summary"],
-            score=response["score"],
-            summary=response["summary"],
+            candidate_name=response["candidate_name"],
+            professional_summary=response["professional_summary"],
+            education=response["education"],
+            work_experience=response["work_experience"],
+            technical_skills=response["technical_skills"],
+            soft_skills=response["soft_skills"],
+            languages=response["languages"],
+            certifications=response["certifications"],
+            warnings=response["warnings"],
             analyzed_at=datetime.now(),
         )

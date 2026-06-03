@@ -22,14 +22,24 @@ class CVAnalyzer(ABC):
     """
 
     @abstractmethod
-    def analyze(self, cv_text: str, job_description: str) -> CVAnalysisResult:
+    def analyze(
+        self,
+        cv_text: str,
+        job_description: str,
+        application_id: str,
+        job_offer_id: str,
+        prompt: str,
+    ) -> CVAnalysisResult:
         """Analiza un CV contra una descripción de puesto.
         
         Args:
             cv_text: Texto extraído del CV del candidato
             job_description: Descripción del puesto de trabajo
+            application_id: ID de la candidatura
+            job_offer_id: ID de la oferta de trabajo
+            prompt: Instrucciones del analisis
             
         Returns:
-            CVAnalysisResult con skills detectadas, score y resumen
+            CVAnalysisResult con el analisis estructurado
         """
         pass

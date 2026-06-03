@@ -37,7 +37,11 @@ def get_upload_application_cv_use_case() -> UploadApplicationCV:
 
 def get_process_application_cv_use_case() -> ProcessApplicationCV:
     container = get_container()
-    return ProcessApplicationCV(container.application_repository, container.cv_text_extractor)
+    return ProcessApplicationCV(
+        container.application_repository,
+        container.cv_text_extractor,
+        container.file_storage,
+    )
 
 
 def get_analyze_application_cv_use_case() -> AnalyzeApplicationCV:
@@ -46,4 +50,6 @@ def get_analyze_application_cv_use_case() -> AnalyzeApplicationCV:
         container.application_repository,
         container.job_offer_repository,
         container.cv_analyzer,
+        container.file_storage,
+        container.cv_text_extractor,
     )
