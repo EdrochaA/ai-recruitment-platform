@@ -20,7 +20,8 @@ class PDFCVTextExtractor(CVTextExtractor):
         Extrae texto de todas las páginas de un PDF.
         
         Args:
-            file_path: Ruta local al archivo PDF
+            file_bytes: Contenido binario del PDF
+            filename: Nombre original del archivo (opcional)
         
         Returns:
             Texto extraído concatenado de todas las páginas

@@ -1,11 +1,8 @@
 from app.domain.ports.job_application_repository import JobApplicationRepository
 from app.domain.ports.job_offer_repository import JobOfferRepository
-from datetime import datetime
-from app.domain.ports.job_application_repository import JobApplicationRepository
 from app.domain.ports.cv_analyzer import CVAnalyzer
-from app.domain.ports.file_storage import FileStorage
-from app.domain.ports.cv_text_extractor import CVTextExtractor
 from app.domain.entities.job_application import JobApplication
+from app.application.use_cases.process_application_cv import ProcessApplicationCV
 
 
 class AnalyzeApplicationCV:
@@ -20,14 +17,12 @@ class AnalyzeApplicationCV:
         job_application_repository: JobApplicationRepository,
         job_offer_repository: JobOfferRepository,
         cv_analyzer: CVAnalyzer,
-        file_storage: FileStorage,
-        cv_text_extractor: CVTextExtractor,
+        cv_processor: ProcessApplicationCV,
     ):
         self.job_application_repository = job_application_repository
         self.job_offer_repository = job_offer_repository
         self.cv_analyzer = cv_analyzer
-        self.file_storage = file_storage
-        self.cv_text_extractor = cv_text_extractor
+        self.cv_processor = cv_processor
 
     def execute(self, application_id: str) -> JobApplication:
         """Analiza el CV de una candidatura.
@@ -41,16 +36,8 @@ class AnalyzeApplicationCV:
         Raises:
             ValueError: Si la candidatura no existe o no tiene CV procesado
         """
-        # Buscar la candidatura
-        job_application = self.job_application_repository.find_by_id(application_id)
-        if not job_application:
-            raise ValueError(f"JobApplication not found with id: {application_id}")
-
-        # Validar que tiene CV subido
-        if not job_application.cv_storage_key:
-            raise ValueError(
-                f"JobApplication {application_id} does not have uploaded CV"
-            )
+        # Procesar CV y recuperar la candidatura actualizada
+        job_application = self.cv_processor.execute(application_id)
 
         # Buscar la oferta de trabajo
         job_offer = self.job_offer_repository.find_by_id(job_application.job_offer_id)
@@ -59,23 +46,11 @@ class AnalyzeApplicationCV:
                 f"JobOffer not found with id: {job_application.job_offer_id}"
             )
 
-        # Recuperar el PDF desde el storage y extraer texto
-        try:
-            file_bytes = self.file_storage.get(job_application.cv_storage_key)
-            cv_text = self.cv_text_extractor.extract_text(
-                file_bytes,
-                filename=job_application.cv_original_filename,
+        # Validar que tiene texto procesado
+        if not job_application.cv_text:
+            raise ValueError(
+                f"JobApplication {application_id} does not have processed CV text"
             )
-            job_application.cv_text = cv_text
-            job_application.cv_processing_status = "processed"
-            job_application.cv_processed_at = datetime.utcnow()
-            job_application.cv_processing_error = None
-        except Exception as exc:
-            job_application.cv_processing_status = "failed"
-            job_application.cv_processing_error = str(exc)
-            job_application.cv_processed_at = datetime.utcnow()
-            self.job_application_repository.update(job_application)
-            raise ValueError(f"CV processing failed: {exc}") from exc
 
         # Marcar como analizando
         job_application.cv_analysis_status = "analyzing"
@@ -100,7 +75,7 @@ class AnalyzeApplicationCV:
             )
 
             analysis_result = self.cv_analyzer.analyze(
-                cv_text=cv_text,
+                cv_text=job_application.cv_text,
                 job_description=job_offer.description,
                 application_id=application_id,
                 job_offer_id=job_application.job_offer_id,

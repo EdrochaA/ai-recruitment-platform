@@ -109,10 +109,15 @@ class AgentCoreClient:
         Returns:
             Dictionary with normalized structure:
             {
-                "skills": list[str],
-                "experience_summary": str,
-                "score": int (0-100),
-                "summary": str
+                "candidate_name": str,
+                "professional_summary": str,
+                "education": list[str],
+                "work_experience": list[str],
+                "technical_skills": list[str],
+                "soft_skills": list[str],
+                "languages": list[str],
+                "certifications": list[str],
+                "warnings": list[str]
             }
             
         Raises:
@@ -194,10 +199,15 @@ class AgentCoreClient:
         Returns:
             Normalized response dict:
             {
-                "skills": list[str],
-                "experience_summary": str,
-                "score": int (0-100),
-                "summary": str
+                "candidate_name": str,
+                "professional_summary": str,
+                "education": list[str],
+                "work_experience": list[str],
+                "technical_skills": list[str],
+                "soft_skills": list[str],
+                "languages": list[str],
+                "certifications": list[str],
+                "warnings": list[str]
             }
             
         Raises:
