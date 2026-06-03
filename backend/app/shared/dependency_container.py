@@ -31,6 +31,7 @@ class DependencyContainer:
     file_storage: Any
     cv_text_extractor: PDFCVTextExtractor
     cv_analyzer: Any
+    chatbot_service: Any
     user_repository: Any = None
     auth_service: Any = None
     job_offer_service: Any = None
@@ -65,6 +66,8 @@ def build_dependency_container() -> DependencyContainer:
     user_repository = None
     auth_service = None
     job_offer_service = None
+    from app.adapters.chatbot.rule_based_chatbot_service import RuleBasedChatbotService
+    chatbot_service = RuleBasedChatbotService()
 
     if mongodb_url:
         try:
@@ -123,6 +126,7 @@ def build_dependency_container() -> DependencyContainer:
         file_storage=file_storage,
         cv_text_extractor=PDFCVTextExtractor(),
         cv_analyzer=_build_cv_analyzer(),
+        chatbot_service=chatbot_service,
         user_repository=user_repository,
         auth_service=auth_service,
         job_offer_service=job_offer_service,

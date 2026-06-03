@@ -7,6 +7,7 @@ from app.application.use_cases.list_applications_by_job_offer import (
 from app.application.use_cases.upload_application_cv import UploadApplicationCV
 from app.application.use_cases.process_application_cv import ProcessApplicationCV
 from app.application.use_cases.analyze_application_cv import AnalyzeApplicationCV
+from app.application.use_cases.send_chatbot_message import SendChatbotMessage
 from app.shared.dependency_container import get_container
 
 
@@ -57,3 +58,8 @@ def get_analyze_application_cv_use_case() -> AnalyzeApplicationCV:
         container.cv_analyzer,
         cv_processor,
     )
+
+
+def get_send_chatbot_message_use_case() -> SendChatbotMessage:
+    container = get_container()
+    return SendChatbotMessage(container.chatbot_service)

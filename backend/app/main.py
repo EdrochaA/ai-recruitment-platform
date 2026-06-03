@@ -1,12 +1,17 @@
 import os
 import logging
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 
-from app.adapters.http.routers.job_offer_router import router as job_offer_router, set_job_offer_service
-from app.adapters.http.routers.application_router import router as application_router
 from app.adapters.http.routers.auth_router import router as auth_router, set_auth_service
+from app.adapters.http.routers.application_router import router as application_router
+from app.adapters.http.routers.chatbot_router import router as chatbot_router
+from app.adapters.http.routers.job_offer_router import (
+    router as job_offer_router,
+    set_job_offer_service,
+)
 from app.shared.dependency_container import get_container
 
 # Configure logging
@@ -20,7 +25,7 @@ load_dotenv()
 app = FastAPI(
     title="AI Recruitment Platform API",
     description="Backend for AI-powered recruitment platform",
-    version="0.1.0"
+    version="0.1.0",
 )
 
 # Setup CORS
@@ -54,6 +59,7 @@ else:
 app.include_router(auth_router)
 app.include_router(job_offer_router)
 app.include_router(application_router)
+app.include_router(chatbot_router)
 
 
 @app.get("/")
@@ -67,6 +73,6 @@ def health_check():
         "services": {
             "auth": auth_status,
             "job_offers": job_offers_status,
-            "applications": "ready"
-        }
+            "applications": "ready",
+        },
     }
