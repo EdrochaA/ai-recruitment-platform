@@ -40,12 +40,12 @@ class AgentCoreCVAnalyzer(CVAnalyzer):
         # Development (mock mode, no AWS credentials needed)
         analyzer = AgentCoreCVAnalyzer()
         result = analyzer.analyze(cv_text, job_description)
-        
+
         # Production (with AgentCore credentials)
         analyzer = AgentCoreCVAnalyzer(
             runtime_id="cv-analyzer-xyz",
             agent_id="cv-analyzer-agent-v1",
-            region="eu-west-1"
+            region="eu-west-1",
         )
         result = analyzer.analyze(cv_text, job_description, session_id="sess_123")
     """

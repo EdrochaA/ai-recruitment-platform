@@ -232,7 +232,10 @@ def download_application_cv(application_id: str):
     try:
         file_bytes = container.file_storage.get(application.cv_storage_key)
     except Exception as exc:
-        error_detail = f"CV file could not be retrieved (storage_key={application.cv_storage_key})"
+        error_detail = (
+            "CV file could not be retrieved "
+            f"(storage_key={application.cv_storage_key})"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=error_detail,

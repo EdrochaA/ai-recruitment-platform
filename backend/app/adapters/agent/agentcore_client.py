@@ -31,7 +31,7 @@ class AgentCoreClient:
     Provides a single integration point for AgentCore-specific functionality,
     keeping the adapter (AgentCoreCVAnalyzer) clean and focused on transforming
     requests/responses.
-    
+
     The actual implementation depends on deployment mode:
     - Development/Local: Mock implementation (current)
     - Production: Real AgentCore runtime invocation via boto3
@@ -308,7 +308,7 @@ class AgentCoreClient:
                 "AgentCore runtime not configured. "
                 "Provide either runtime_arn or runtime_id."
             )
-        
+
         # Use runtime_arn if available, otherwise fall back to runtime_id
         runtime_identifier = self.runtime_arn or self.runtime_id
         if not runtime_identifier or not str(runtime_identifier).startswith("arn:"):
@@ -359,7 +359,7 @@ class AgentCoreClient:
             error_msg = e.response.get("Error", {}).get("Message", str(e))
             logger.error("AWS ClientError [%s]: %s", error_code, error_msg)
             raise
-        
+
         except BotoCoreError as e:
             logger.error("AWS BotoCoreError: %s", e)
             raise
@@ -540,7 +540,7 @@ class AgentCoreClient:
                 f"AgentCore response missing required fields: {missing_fields}. "
                 f"Response: {parsed_json}"
             )
-        
+
         # Normalize and validate each field
         try:
             candidate_name = str(parsed_json.get("candidate_name", "")).strip()
