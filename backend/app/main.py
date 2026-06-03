@@ -48,12 +48,17 @@ container = get_container()
 auth_service = container.auth_service
 job_offer_service = container.job_offer_service
 
-if auth_service and job_offer_service:
+if auth_service:
     set_auth_service(auth_service)
-    set_job_offer_service(job_offer_service)
-    logger.info("Authentication and JobOffer services initialized successfully")
+    logger.info("Authentication service initialized successfully")
 else:
-    logger.warning("Auth and JobOffer services not initialized (using fallback dependencies)")
+    logger.warning("Authentication service not initialized")
+
+if job_offer_service:
+    set_job_offer_service(job_offer_service)
+    logger.info("JobOffer service initialized successfully")
+else:
+    logger.warning("JobOffer service not initialized")
 
 # Include routers
 app.include_router(auth_router)
@@ -67,12 +72,14 @@ def health_check():
     """Health check endpoint"""
     auth_status = "connected" if auth_service else "not initialized"
     job_offers_status = "ready" if job_offer_service else "not initialized"
+    database_status = "connected" if container.user_repository else "not connected"
     return {
         "message": "Backend funcionando correctamente",
         "version": "0.1.0",
         "services": {
             "auth": auth_status,
             "job_offers": job_offers_status,
+            "database": database_status,
             "applications": "ready",
         },
     }

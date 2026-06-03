@@ -110,11 +110,14 @@ def build_dependency_container() -> DependencyContainer:
             )
 
             logger.info("Dependency container initialized with MongoDB + GridFS")
-        except Exception:
+        except Exception as exc:
             logger.exception(
-                "MongoDB detected but initialization failed. "
-                "Falling back to in-memory/local dependencies"
+                "MongoDB detected but initialization failed during startup"
             )
+            raise RuntimeError(
+                "MONGODB_URL is configured but MongoDB initialization failed. "
+                "Fix MongoDB connectivity/configuration and restart the backend."
+            ) from exc
     else:
         logger.warning(
             "MONGODB_URL not set. Using in-memory repositories and local file storage"

@@ -3,8 +3,10 @@ JobOffer Router
 HTTP endpoints for job offer management
 """
 
-from fastapi import APIRouter, HTTPException, status, Header
+import logging
 from typing import Optional
+
+from fastapi import APIRouter, Header, HTTPException, status
 
 from app.adapters.http.schemas.job_offer_schemas import (
     CreateJobOfferRequest,
@@ -13,6 +15,7 @@ from app.adapters.http.schemas.job_offer_schemas import (
 )
 
 router = APIRouter(prefix="/job-offers", tags=["Job Offers"])
+logger = logging.getLogger(__name__)
 
 # This will be injected by main.py
 job_offer_service = None
@@ -58,6 +61,12 @@ async def create_job_offer(
     
     Requires valid JWT token in Authorization header.
     """
+    if not job_offer_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Job offer service not initialized",
+        )
+
     # Get user from token
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -99,11 +108,13 @@ async def create_job_offer(
         )
         return result
     except ValueError as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error creating job offer"
@@ -115,10 +126,15 @@ async def list_job_offers():
     """
     Get all open job offers (public endpoint)
     """
+    if not job_offer_service:
+        logger.error("job_offer_service is not initialized in list_job_offers")
+        return {"offers": [], "total": 0}
+
     try:
         result = await job_offer_service.get_open_offers()
         return result
     except Exception as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching job offers"
@@ -130,6 +146,12 @@ async def get_my_offers(authorization: Optional[str] = Header(None)):
     """
     Get job offers created by the current user (HR/Admin only)
     """
+    if not job_offer_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Job offer service not initialized",
+        )
+
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -158,6 +180,7 @@ async def get_my_offers(authorization: Optional[str] = Header(None)):
         result = await job_offer_service.get_my_offers(payload.get("user_id"))
         return result
     except Exception as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching your offers"
