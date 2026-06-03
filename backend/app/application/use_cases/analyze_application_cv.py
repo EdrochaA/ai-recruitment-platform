@@ -7,7 +7,7 @@ from app.application.use_cases.process_application_cv import ProcessApplicationC
 
 class AnalyzeApplicationCV:
     """Caso de uso para analizar el CV de una candidatura.
-    
+
     Orquesta la extracción de texto del CV y su análisis inteligente,
     actualizando el estado de la candidatura con los resultados.
     """
@@ -26,13 +26,13 @@ class AnalyzeApplicationCV:
 
     def execute(self, application_id: str) -> JobApplication:
         """Analiza el CV de una candidatura.
-        
+
         Args:
             application_id: ID de la candidatura
-            
+
         Returns:
             JobApplication actualizada con resultados del análisis
-            
+
         Raises:
             ValueError: Si la candidatura no existe o no tiene CV procesado
         """
@@ -93,7 +93,9 @@ class AnalyzeApplicationCV:
             job_application.cv_analysis_candidate_name = analysis_result.candidate_name
             job_application.cv_analysis_education = analysis_result.education
             job_application.cv_analysis_work_experience = analysis_result.work_experience
-            job_application.cv_analysis_technical_skills = analysis_result.technical_skills
+            job_application.cv_analysis_technical_skills = (
+                analysis_result.technical_skills
+            )
             job_application.cv_analysis_soft_skills = analysis_result.soft_skills
             job_application.cv_analysis_languages = analysis_result.languages
             job_application.cv_analysis_certifications = analysis_result.certifications

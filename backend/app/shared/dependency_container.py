@@ -77,7 +77,10 @@ def build_dependency_container() -> DependencyContainer:
 
             user_repository = MongoDBUserRepository(mongodb_url, mongodb_database)
             mongo_db = user_repository.db
-            job_offer_repository = MongoDBJobOfferRepository(mongodb_url, mongodb_database)
+            job_offer_repository = MongoDBJobOfferRepository(
+                mongodb_url,
+                mongodb_database,
+            )
             application_repository = MongoDBJobApplicationRepository(mongo_db)
             file_storage = MongoGridFSFileStorage(mongo_db)
 
@@ -106,10 +109,13 @@ def build_dependency_container() -> DependencyContainer:
             logger.info("Dependency container initialized with MongoDB + GridFS")
         except Exception:
             logger.exception(
-                "MongoDB detected but initialization failed. Falling back to in-memory/local dependencies"
+                "MongoDB detected but initialization failed. "
+                "Falling back to in-memory/local dependencies"
             )
     else:
-        logger.warning("MONGODB_URL not set. Using in-memory repositories and local file storage")
+        logger.warning(
+            "MONGODB_URL not set. Using in-memory repositories and local file storage"
+        )
 
     return DependencyContainer(
         job_offer_repository=job_offer_repository,

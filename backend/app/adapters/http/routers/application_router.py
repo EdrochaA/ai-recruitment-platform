@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, Header
-from fastapi.responses import Response, StreamingResponse
-from io import BytesIO
 import inspect
 import re
 import zipfile
+from io import BytesIO
+
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
+from fastapi.responses import Response, StreamingResponse
 
 from app.application.use_cases.create_application import CreateApplication
 from app.application.use_cases.list_applications_by_job_offer import (
@@ -160,7 +161,7 @@ def analyze_application_cv(
     authorization: str | None = Header(default=None, alias="Authorization"),
 ):
     """Analyze CV using intelligent CV analyzer.
-    
+
     Extracts skills, experience and compatibility score based on job requirements.
     """
     container = get_container()
@@ -291,12 +292,20 @@ def download_job_offer_cvs(job_offer_id: str):
             detail="No CVs available for this job offer",
         )
 
-    safe_offer_title = re.sub(r"[\\/:*?\"<>|]+", "_", (job_offer.title or "job-offer")).strip()
+    safe_offer_title = re.sub(
+        r"[\\/:*?\"<>|]+",
+        "_",
+        (job_offer.title or "job-offer"),
+    ).strip()
     if not safe_offer_title:
         safe_offer_title = "job-offer"
 
     zip_buffer = BytesIO()
-    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+    with zipfile.ZipFile(
+        zip_buffer,
+        mode="w",
+        compression=zipfile.ZIP_DEFLATED,
+    ) as zip_file:
         for index, application in enumerate(applications_with_cv, start=1):
             try:
                 file_bytes = container.file_storage.get(application.cv_storage_key)

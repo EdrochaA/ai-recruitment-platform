@@ -37,5 +37,5 @@ class JobApplication:
     cv_analysis_warnings: Optional[list[str]] = None
     cv_analyzed_at: Optional[datetime] = None
     cv_analysis_error: Optional[str] = None
-    
-    created_at: datetime = None # type: ignore
+
+    created_at: Optional[datetime] = None
