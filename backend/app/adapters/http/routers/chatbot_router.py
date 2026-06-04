@@ -38,7 +38,13 @@ def send_chatbot_message(
             detail="Invalid or expired token",
         )
 
-    role = str(payload.get("role") or "candidate")
+    role = str(payload.get("role") or "").strip().lower()
+
+    if role not in {"hr", "admin"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chatbot access is restricted to HR and admin users",
+        )
 
     try:
         result = use_case.execute(

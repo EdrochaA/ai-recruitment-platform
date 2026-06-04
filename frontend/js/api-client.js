@@ -276,6 +276,23 @@ class APIClient {
   }
 
   /**
+   * Chatbot API
+   */
+  async sendChatbotMessage(message, page = 'unknown', jobOfferId = null, applicationId = null) {
+    return this.request('/chatbot/message', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        context: {
+          page,
+          job_offer_id: jobOfferId,
+          application_id: applicationId,
+        },
+      }),
+    });
+  }
+
+  /**
    * Health check
    */
   async healthCheck() {
