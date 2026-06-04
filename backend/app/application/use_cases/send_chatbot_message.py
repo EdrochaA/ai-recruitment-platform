@@ -12,6 +12,7 @@ class SendChatbotMessage:
         page: str,
         job_offer_id: str | None = None,
         application_id: str | None = None,
+        actor_id: str | None = None,
     ) -> dict:
         normalized_message = message.strip()
         if not normalized_message:
@@ -32,4 +33,5 @@ class SendChatbotMessage:
             page=normalized_page,
             job_offer_id=job_offer_id,
             application_id=application_id,
+            actor_id=actor_id,
         )

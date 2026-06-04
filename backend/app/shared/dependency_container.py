@@ -19,7 +19,7 @@ from app.adapters.persistence.mongodb_job_offer_repository import (
 from app.adapters.persistence.mongodb_user_repository import MongoDBUserRepository
 from app.adapters.storage.local_file_storage import LocalFileStorage
 from app.adapters.storage.mongodb_gridfs_file_storage import MongoGridFSFileStorage
-from app.shared.config import get_cv_analyzer_config
+from app.shared.config import get_chatbot_config, get_cv_analyzer_config
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,27 @@ def _build_cv_analyzer() -> Any:
     return SimpleCVAnalyzer()
 
 
+def _build_chatbot_service() -> Any:
+    from app.adapters.chatbot.rule_based_chatbot_service import RuleBasedChatbotService
+
+    config = get_chatbot_config()
+    fallback_service = RuleBasedChatbotService()
+
+    if config.is_agentcore_enabled():
+        from app.adapters.chatbot.agentcore_chatbot_service import (
+            AgentCoreChatbotService,
+        )
+
+        return AgentCoreChatbotService(
+            runtime_arn=config.agentcore_runtime_arn,
+            region=config.aws_region,
+            timeout_seconds=config.timeout_seconds,
+            fallback_service=fallback_service,
+        )
+
+    return fallback_service
+
+
 def build_dependency_container() -> DependencyContainer:
     mongodb_url = os.getenv("MONGODB_URL")
     mongodb_database = os.getenv("MONGODB_DATABASE", "ai-recruitment-platform")
@@ -66,8 +87,7 @@ def build_dependency_container() -> DependencyContainer:
     user_repository = None
     auth_service = None
     job_offer_service = None
-    from app.adapters.chatbot.rule_based_chatbot_service import RuleBasedChatbotService
-    chatbot_service = RuleBasedChatbotService()
+    chatbot_service = _build_chatbot_service()
 
     if mongodb_url:
         try:

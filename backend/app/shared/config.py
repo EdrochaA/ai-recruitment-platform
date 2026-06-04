@@ -25,6 +25,11 @@ from enum import Enum
 logger = logging.getLogger("config")
 
 
+class ChatbotProvider(str, Enum):
+    RULE_BASED = "rule_based"
+    AGENTCORE = "agentcore"
+
+
 class CVAnalyzerProvider(str, Enum):
     """Supported CV Analyzer implementations."""
     SIMPLE = "simple"
@@ -128,8 +133,48 @@ class CVAnalyzerConfig:
         )
 
 
+class ChatbotConfig:
+    def __init__(self):
+        self.provider = self._read_provider()
+        self.aws_region = os.getenv("AWS_REGION", "eu-west-1")
+        self.agentcore_runtime_arn = os.getenv("AGENTCORE_RUNTIME_ARN")
+        self.timeout_seconds = int(os.getenv("CHATBOT_TIMEOUT_SECONDS", "20"))
+        self._validate_configuration()
+
+    def _read_provider(self) -> ChatbotProvider:
+        provider_str = os.getenv("CHATBOT_PROVIDER", "rule_based").lower()
+        try:
+            return ChatbotProvider(provider_str)
+        except ValueError:
+            raise ValueError(
+                f"Invalid CHATBOT_PROVIDER='{provider_str}'. "
+                f"Valid values: {', '.join([p.value for p in ChatbotProvider])}"
+            )
+
+    def _validate_configuration(self) -> None:
+        if self.provider == ChatbotProvider.AGENTCORE:
+            if not self.agentcore_runtime_arn:
+                raise ValueError(
+                    "AGENTCORE_RUNTIME_ARN is required when CHATBOT_PROVIDER=agentcore"
+                )
+            logger.info(
+                "Chatbot AgentCore configuration: runtime_arn=%s, region=%s",
+                self.agentcore_runtime_arn,
+                self.aws_region,
+            )
+        else:
+            logger.info("Using RuleBasedChatbotService")
+
+    def is_agentcore_enabled(self) -> bool:
+        return self.provider == ChatbotProvider.AGENTCORE
+
+    def is_rule_based(self) -> bool:
+        return self.provider == ChatbotProvider.RULE_BASED
+
+
 # Global configuration instance (loaded once at startup)
 _config = None
+_chatbot_config = None
 
 
 def get_cv_analyzer_config() -> CVAnalyzerConfig:
@@ -155,3 +200,12 @@ def reset_config() -> None:
     """
     global _config
     _config = None
+    global _chatbot_config
+    _chatbot_config = None
+
+
+def get_chatbot_config() -> ChatbotConfig:
+    global _chatbot_config
+    if _chatbot_config is None:
+        _chatbot_config = ChatbotConfig()
+    return _chatbot_config

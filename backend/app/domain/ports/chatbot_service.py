@@ -10,5 +10,6 @@ class ChatbotService(ABC):
         page: str,
         job_offer_id: str | None = None,
         application_id: str | None = None,
+        actor_id: str | None = None,
     ) -> dict:
         pass
