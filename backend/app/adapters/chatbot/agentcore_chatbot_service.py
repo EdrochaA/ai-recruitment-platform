@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any
 
 import boto3
@@ -25,6 +26,12 @@ class AgentCoreChatbotService(ChatbotService):
         self.region = region
         self.timeout_seconds = timeout_seconds
         self.fallback_service = fallback_service or RuleBasedChatbotService()
+        logger.info(
+            "AgentCoreChatbotService initialized. runtime_arn=%s region=%s timeout=%s",
+            self.runtime_arn,
+            self.region,
+            self.timeout_seconds,
+        )
 
     def send_message(
         self,
@@ -124,7 +131,9 @@ class AgentCoreChatbotService(ChatbotService):
 
     def _build_session_id(self, actor_id: str) -> str:
         safe_actor = "".join(ch for ch in actor_id if ch.isalnum() or ch in {"-", "_"})
-        return f"chatbot-{safe_actor[:32] or 'user'}"
+        timestamp = str(int(time.time() * 1000))
+        actor_fragment = (safe_actor[:16] or "user").ljust(16, "0")
+        return f"chatbot-session-{actor_fragment}-{timestamp}"
 
     def _parse_runtime_response(self, response: dict[str, Any]) -> dict:
         raw_text = self._extract_text(response).strip()

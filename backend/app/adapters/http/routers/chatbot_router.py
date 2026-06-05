@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.adapters.http.schemas.chatbot_schema import (
@@ -9,6 +11,7 @@ from app.shared.dependencies import get_send_chatbot_message_use_case
 from app.shared.dependency_container import get_container
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/message", response_model=ChatbotMessageResponse)
@@ -61,7 +64,20 @@ def send_chatbot_message(
         )
         return ChatbotMessageResponse(**result)
     except ValueError as exc:
+        logger.exception(exc)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        logger.exception(exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        logger.exception(exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Chatbot request failed",
         ) from exc

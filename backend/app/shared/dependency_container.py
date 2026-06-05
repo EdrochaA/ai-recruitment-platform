@@ -66,6 +66,7 @@ def _build_chatbot_service() -> Any:
         from app.adapters.chatbot.agentcore_chatbot_service import (
             AgentCoreChatbotService,
         )
+        logger.info("Building chatbot service with AgentCore provider")
 
         return AgentCoreChatbotService(
             runtime_arn=config.agentcore_runtime_arn,
@@ -73,6 +74,7 @@ def _build_chatbot_service() -> Any:
             timeout_seconds=config.timeout_seconds,
             fallback_service=fallback_service,
         )
+    logger.info("Building chatbot service with RuleBased provider")
 
     return fallback_service
 
