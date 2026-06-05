@@ -52,10 +52,6 @@ def send_chatbot_message(
     try:
         result = use_case.execute(
             message=request.message,
-            role=role,
-            page=request.context.page,
-            job_offer_id=request.context.job_offer_id,
-            application_id=request.context.application_id,
             actor_id=(
                 payload.get("user_id")
                 or payload.get("email")

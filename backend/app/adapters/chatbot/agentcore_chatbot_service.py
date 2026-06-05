@@ -36,70 +36,31 @@ class AgentCoreChatbotService(ChatbotService):
     def send_message(
         self,
         message: str,
-        role: str,
-        page: str,
-        job_offer_id: str | None = None,
-        application_id: str | None = None,
         actor_id: str | None = None,
     ) -> dict:
-        final_prompt = self._build_prompt(
-            message=message,
-            role=role,
-            page=page,
-            job_offer_id=job_offer_id,
-            application_id=application_id,
-        )
-        safe_actor_id = actor_id or role
+        safe_actor_id = actor_id or "user"
 
         try:
             response = self._invoke_runtime(
-                prompt=final_prompt,
+                prompt=message,
                 actor_id=safe_actor_id,
             )
             return self._parse_runtime_response(response)
         except Exception as exc:
             logger.exception(
-                "AgentCore chatbot invocation failed for role=%s page=%s runtime=%s",
-                role,
-                page,
+                "AgentCore chatbot invocation failed for runtime=%s",
                 self.runtime_arn,
             )
             if os.getenv("CHATBOT_AGENTCORE_FALLBACK", "true").lower() == "true":
                 logger.warning("Falling back to RuleBasedChatbotService after AgentCore failure")
                 return self.fallback_service.send_message(
                     message=message,
-                    role=role,
-                    page=page,
-                    job_offer_id=job_offer_id,
-                    application_id=application_id,
                     actor_id=safe_actor_id,
                 )
-            raise RuntimeError("Chatbot provider error: AgentCore runtime is unavailable") from exc
-
-    def _build_prompt(
-        self,
-        message: str,
-        role: str,
-        page: str,
-        job_offer_id: str | None = None,
-        application_id: str | None = None,
-    ) -> str:
-        job_offer_line = job_offer_id or "not provided"
-        application_line = application_id or "not provided"
-
-        return (
-            "You are a professional recruitment platform assistant. "
-            "Answer only about the platform capabilities and current workflow. "
-            "Do not invent job offer data, candidate data, rankings or hiring decisions. "
-            "Do not expose secrets, tokens, environment variables or internal implementation details. "
-            "If the user asks for unsupported capabilities, explain the limitation briefly. "
-            "Return either plain text or JSON with keys answer, intent and suggestions.\n\n"
-            f"User role: {role}\n"
-            f"Current page: {page}\n"
-            f"Job offer id: {job_offer_line}\n"
-            f"Application id: {application_line}\n"
-            f"User message: {message}\n"
-        )
+            error_detail = str(exc).strip() or exc.__class__.__name__
+            raise RuntimeError(
+                f"Chatbot provider error: AgentCore runtime is unavailable ({error_detail})"
+            ) from exc
 
     def _invoke_runtime(self, prompt: str, actor_id: str) -> dict[str, Any]:
         config = Config(read_timeout=self.timeout_seconds, connect_timeout=10)
