@@ -31,11 +31,6 @@ from app.domain.ports.candidate_ranker import (
 
 logger = logging.getLogger("agentcore-candidate-ranker")
 
-# Max characters per CV sent to the LLM (prevent token overflow)
-_CV_TEXT_LIMIT = 2500
-# Max total candidates sent in a single prompt
-_MAX_CANDIDATES_IN_PROMPT = 20
-
 
 class AgentCoreCandidateRanker(CandidateRankerPort):
     """Ranks candidates using the AgentCore LLM runtime."""
@@ -68,10 +63,7 @@ class AgentCoreCandidateRanker(CandidateRankerPort):
         top_n: int,
     ) -> tuple[list[RankedCandidate], str]:
         try:
-            prompt = self._build_prompt(
-                job_offer_title, job_offer_description, required_skills,
-                candidates, top_n,
-            )
+            prompt = self._build_prompt(job_offer_title, top_n)
             raw_response = self._invoke_runtime(prompt)
             ranked, summary = self._parse_response(raw_response, candidates, top_n)
             logger.info(
@@ -96,49 +88,17 @@ class AgentCoreCandidateRanker(CandidateRankerPort):
 
     # ── Prompt builder ─────────────────────────────────────────────────────
 
-    def _build_prompt(
-        self,
-        title: str,
-        description: str,
-        required_skills: list[str],
-        candidates: list[CandidateInput],
-        top_n: int,
-    ) -> str:
-        skills_str = ", ".join(required_skills) if required_skills else "No especificadas"
-
-        candidates_block = ""
-        for i, c in enumerate(candidates[:_MAX_CANDIDATES_IN_PROMPT], start=1):
-            cv_snippet = (c.cv_text or "")[:_CV_TEXT_LIMIT]
-            if len(c.cv_text or "") > _CV_TEXT_LIMIT:
-                cv_snippet += "\n[... CV truncado por longitud ...]"
-            candidates_block += (
-                f"\n--- CANDIDATO {i} ---\n"
-                f"ID: {c.application_id}\n"
-                f"Nombre: {c.candidate_name}\n"
-                f"CV:\n{cv_snippet}\n"
-            )
-
-        prompt = (
-            f"Eres un experto en selección de personal. Analiza los siguientes CVs "
-            f"y devuelve un ranking de los {top_n} mejores candidatos para la oferta descrita.\n\n"
-            f"OFERTA DE TRABAJO:\n"
-            f"- Título: {title}\n"
-            f"- Descripción: {description[:1500]}\n"
-            f"- Skills requeridas: {skills_str}\n\n"
-            f"CANDIDATOS (total: {len(candidates)}):\n"
-            f"{candidates_block}\n"
-            f"INSTRUCCIÓN:\n"
-            f"Rankea los {top_n} candidatos más idóneos de mayor a menor puntuación. "
-            f"Para cada uno evalúa su ajuste con la oferta y explica el motivo.\n\n"
+    def _build_prompt(self, title: str, top_n: int) -> str:
+        """Build a short delegation prompt so the agent uses its own tools."""
+        return (
+            f"Usa tus tools para obtener los detalles de la oferta '{title}' y la lista "
+            f"de sus candidatos con sus CVs. A continuación rankea los {top_n} candidatos "
+            f"más idóneos evaluando el ajuste de cada CV con los requisitos de la oferta.\n\n"
             f"Devuelve ÚNICAMENTE el siguiente JSON, sin texto adicional antes ni después:\n"
-            f"{{\n"
-            f'  "ranking": [\n'
-            f'    {{"application_id": "...", "candidate_name": "...", "score": 85, "reason": "..."}}\n'
-            f"  ],\n"
-            f'  "summary": "Resumen breve del proceso de selección"\n'
-            f"}}"
+            f'{{"ranking": [{{"application_id": "...", "candidate_name": "...", '
+            f'"score": 85, "reason": "Motivo detallado"}}], '
+            f'"summary": "Resumen breve del proceso de selección"}}'
         )
-        return prompt
 
     # ── Runtime call ───────────────────────────────────────────────────────
 
