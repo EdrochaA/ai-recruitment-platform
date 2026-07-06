@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.adapters.http.routers.auth_router import router as auth_router, set_auth_service
 from app.adapters.http.routers.application_router import router as application_router
 from app.adapters.http.routers.chatbot_router import router as chatbot_router
+from app.adapters.http.routers.internal_router import router as internal_router
 from app.adapters.http.routers.job_offer_router import (
     router as job_offer_router,
     set_job_offer_service,
@@ -65,6 +66,7 @@ app.include_router(auth_router)
 app.include_router(job_offer_router)
 app.include_router(application_router)
 app.include_router(chatbot_router)
+app.include_router(internal_router)
 
 
 @app.get("/")

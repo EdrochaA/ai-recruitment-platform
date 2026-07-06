@@ -20,3 +20,16 @@ class InMemoryJobOfferRepository(JobOfferRepository):
             if job_offer.id == job_offer_id:
                 return job_offer
         return None
+
+    def find_by_title(self, title: str) -> Optional[JobOffer]:
+        """Find by partial, case-insensitive title match."""
+        title_lower = title.lower().strip()
+        # Exact match first
+        for offer in self._job_offers:
+            if offer.title.lower() == title_lower:
+                return offer
+        # Partial match
+        for offer in self._job_offers:
+            if title_lower in offer.title.lower() or offer.title.lower() in title_lower:
+                return offer
+        return None

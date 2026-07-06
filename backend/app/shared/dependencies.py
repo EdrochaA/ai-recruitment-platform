@@ -8,6 +8,7 @@ from app.application.use_cases.upload_application_cv import UploadApplicationCV
 from app.application.use_cases.process_application_cv import ProcessApplicationCV
 from app.application.use_cases.analyze_application_cv import AnalyzeApplicationCV
 from app.application.use_cases.send_chatbot_message import SendChatbotMessage
+from app.application.use_cases.rank_candidates_for_offer import RankCandidatesForOffer
 from app.shared.dependency_container import get_container
 
 
@@ -63,3 +64,14 @@ def get_analyze_application_cv_use_case() -> AnalyzeApplicationCV:
 def get_send_chatbot_message_use_case() -> SendChatbotMessage:
     container = get_container()
     return SendChatbotMessage(container.chatbot_service)
+
+
+def get_rank_candidates_use_case() -> RankCandidatesForOffer:
+    container = get_container()
+    return RankCandidatesForOffer(
+        job_offer_repository=container.job_offer_repository,
+        application_repository=container.application_repository,
+        cv_text_extractor=container.cv_text_extractor,
+        file_storage=container.file_storage,
+        candidate_ranker=container.candidate_ranker,
+    )

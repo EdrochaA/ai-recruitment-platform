@@ -32,6 +32,7 @@ class DependencyContainer:
     cv_text_extractor: PDFCVTextExtractor
     cv_analyzer: Any
     chatbot_service: Any
+    candidate_ranker: Any
     user_repository: Any = None
     auth_service: Any = None
     job_offer_service: Any = None
@@ -54,6 +55,37 @@ def _build_cv_analyzer() -> Any:
     from app.adapters.ai.simple_cv_analyzer import SimpleCVAnalyzer
 
     return SimpleCVAnalyzer()
+
+
+def _build_candidate_ranker() -> Any:
+    """Build the candidate ranker.
+
+    Primary:  AgentCoreCandidateRanker  when CHATBOT_PROVIDER=agentcore
+              (same runtime as the chatbot — the LLM reasons about candidates).
+    Fallback: KeywordCandidateRanker    always available as safety net.
+    """
+    from app.adapters.ranking.keyword_candidate_ranker import KeywordCandidateRanker
+
+    keyword_ranker = KeywordCandidateRanker()
+    config = get_chatbot_config()
+
+    if config.is_agentcore_enabled():
+        from app.adapters.agent.agentcore_candidate_ranker import AgentCoreCandidateRanker
+
+        logger.info(
+            "Building AgentCoreCandidateRanker — runtime_arn=%s region=%s",
+            config.agentcore_runtime_arn,
+            config.aws_region,
+        )
+        return AgentCoreCandidateRanker(
+            runtime_arn=config.agentcore_runtime_arn,
+            region=config.aws_region,
+            timeout_seconds=config.timeout_seconds,
+            fallback=keyword_ranker,
+        )
+
+    logger.info("Building KeywordCandidateRanker (AgentCore not configured)")
+    return keyword_ranker
 
 
 def _build_chatbot_service() -> Any:
@@ -90,6 +122,7 @@ def build_dependency_container() -> DependencyContainer:
     auth_service = None
     job_offer_service = None
     chatbot_service = _build_chatbot_service()
+    candidate_ranker = _build_candidate_ranker()
 
     if mongodb_url:
         try:
@@ -152,6 +185,7 @@ def build_dependency_container() -> DependencyContainer:
         cv_text_extractor=PDFCVTextExtractor(),
         cv_analyzer=_build_cv_analyzer(),
         chatbot_service=chatbot_service,
+        candidate_ranker=candidate_ranker,
         user_repository=user_repository,
         auth_service=auth_service,
         job_offer_service=job_offer_service,

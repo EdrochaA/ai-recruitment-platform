@@ -129,6 +129,37 @@ class MongoDBJobOfferRepository(JobOfferRepositoryPort):
             nice_to_have_skills=doc.get("nice_to_have_skills", []),
         )
     
+    # ── Sync helpers used by rank-candidates use case ─────────────────────
+
+    def list_all(self) -> list:
+        """Return all job offers (synchronous)."""
+        return [
+            self._doc_to_job_offer(doc)
+            for doc in self.offers_collection.find({})
+        ]
+
+    def find_by_title(self, title: str):
+        """Find a job offer by partial, case-insensitive title match (synchronous)."""
+        import re as _re
+
+        title_escaped = _re.escape(title.strip())
+
+        # Exact match first
+        doc = self.offers_collection.find_one(
+            {"title": {"$regex": f"^{title_escaped}$", "$options": "i"}}
+        )
+        if doc:
+            return self._doc_to_job_offer(doc)
+
+        # Partial match (title searched for is contained in offer title)
+        doc = self.offers_collection.find_one(
+            {"title": {"$regex": title_escaped, "$options": "i"}}
+        )
+        if doc:
+            return self._doc_to_job_offer(doc)
+
+        return None
+
     def close(self):
         """Close MongoDB connection"""
         self.client.close()
