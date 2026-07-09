@@ -17,8 +17,7 @@ WORKDIR /app
 # Copia primero el manifiesto de dependencias para aprovechar la cache de capas
 COPY backend/pyproject.toml ./backend/
 
-# Instala las dependencias del proyecto en el entorno del sistema usando uv
-RUN uv pip install --system --no-cache -r backend/pyproject.toml
+RUN cd backend && uv pip install --system --no-cache .
 
 # Copia el codigo del backend
 COPY backend/ ./backend/
