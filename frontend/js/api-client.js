@@ -293,6 +293,21 @@ class APIClient {
   }
 
   /**
+   * Rank top-N candidates for a job offer (reads directly from MongoDB via backend).
+   * @param {string} jobOfferTitle - Partial or full title of the job offer.
+   * @param {number} topN - How many candidates to return (1-10, default 3).
+   */
+  async rankCandidates(jobOfferTitle, topN = 3) {
+    return this.request('/chatbot/rank-candidates', {
+      method: 'POST',
+      body: JSON.stringify({
+        job_offer_title: jobOfferTitle,
+        top_n: topN,
+      }),
+    });
+  }
+
+  /**
    * Health check
    */
   async healthCheck() {

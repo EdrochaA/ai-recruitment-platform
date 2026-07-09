@@ -142,6 +142,88 @@ const Chatbot = (() => {
     return pageMap[page] || 'unknown';
   }
 
+  // ── Ranking intent detection ─────────────────────────────────────────────
+
+  /**
+   * Returns true when the message looks like a candidate ranking request.
+   * Triggers on Spanish/English keywords related to ranking candidates.
+   */
+  function isRankingIntent(msg) {
+    return /ranking|top\s*\d|mejores candidatos?|filtrar candidatos?|rank(ea|ar)|candidatos? para|rankea/i.test(msg);
+  }
+
+  /**
+   * Try to extract a job offer title from the user message.
+   * Priority: quoted text → "para/de/oferta … <title>" pattern.
+   * Returns null when no title can be confidently extracted.
+   */
+  function extractJobOfferTitle(msg) {
+    // Text inside single or double quotes
+    const quoted = msg.match(/["'«»]([^"'«»]{3,})["'«»]/);
+    if (quoted) return quoted[1].trim();
+
+    // "para (la oferta de?) X", "de la oferta X", "oferta llamada X", etc.
+    const patterns = [
+      /(?:para|de)\s+(?:la\s+oferta(?:\s+de(?:\s+trabajo)?)?|la\s+posici[oó]n(?:\s+de)?)\s+(.+?)(?:\s*[,.]|$)/i,
+      /oferta(?:\s+de(?:\s+trabajo)?)?\s+(?:llamad[ao]|titulad[ao])?\s+(.+?)(?:\s*[,.]|$)/i,
+      /para\s+([A-Za-z0-9\s\-áéíóúüñÁÉÍÓÚÜÑ]{5,})(?:\s*[,.]|$)/i,
+    ];
+    for (const p of patterns) {
+      const m = msg.match(p);
+      if (m) return m[1].trim();
+    }
+
+    return null;
+  }
+
+  // ── Ranking response renderer ────────────────────────────────────────────
+
+  function appendRankingResponse(data) {
+    // If not found or empty, fall back to a plain bot bubble
+    if (!data.found || !data.ranked_candidates || data.ranked_candidates.length === 0) {
+      appendBotMessage(data.message);
+      return;
+    }
+
+    const wrapper = document.createElement('div');
+
+    // Summary bubble
+    const summary = document.createElement('div');
+    summary.className = 'chatbot__bubble chatbot__bubble--bot';
+    summary.textContent = data.message;
+    wrapper.appendChild(summary);
+
+    // One card per ranked candidate
+    data.ranked_candidates.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'chatbot__ranking-card';
+
+      const skillsText = (c.skills || []).slice(0, 5).join(', ') || '–';
+      const analysisLabel = c.cv_analysis_status === 'completed'
+        ? '✅ Análisis completo'
+        : c.cv_processing_status === 'processed'
+          ? '⚡ CV procesado'
+          : '⏳ Pendiente';
+
+      card.innerHTML = `
+        <div class="chatbot__ranking-badge">#${c.rank}</div>
+        <div class="chatbot__ranking-info">
+          <div class="chatbot__ranking-name">${c.candidate_name}</div>
+          <div class="chatbot__ranking-score">
+            <span class="chatbot__ranking-score-value">${c.score}<small>/100</small></span>
+            <span class="chatbot__ranking-status">${analysisLabel}</span>
+          </div>
+          <div class="chatbot__ranking-reason">${c.ranking_reason}</div>
+          <div class="chatbot__ranking-skills">🛠 ${skillsText}</div>
+        </div>
+      `;
+      wrapper.appendChild(card);
+    });
+
+    messages().appendChild(wrapper);
+    scrollToBottom();
+  }
+
   // ── Send ─────────────────────────────────────────────────────────────────
   async function sendMessage(text) {
     const msg = (text || input().value).trim();
@@ -157,17 +239,35 @@ const Chatbot = (() => {
     input().value = '';
 
     appendUserMessage(msg);
-    const typingEl = appendTypingIndicator();
+    appendTypingIndicator();
 
     try {
-      const data = await apiClient.sendChatbotMessage(
-        msg,
-        getCurrentPage(),
-        null,
-        null
-      );
-      removeTypingIndicator();
-      appendBotMessage(data.answer, data.suggestions || []);
+      // ── Ranking intent ────────────────────────────────────────────────
+      if (isRankingIntent(msg)) {
+        const title = extractJobOfferTitle(msg);
+        if (!title) {
+          removeTypingIndicator();
+          appendBotMessage(
+            'Para hacer el ranking necesito saber el nombre exacto de la oferta. ' +
+            'Escríbelo entre comillas, por ejemplo:\n' +
+            '"Ranking para \\"Senior Frontend Developer\\""'
+          );
+        } else {
+          const data = await apiClient.rankCandidates(title);
+          removeTypingIndicator();
+          appendRankingResponse(data);
+        }
+      } else {
+        // ── Normal chatbot ──────────────────────────────────────────────
+        const data = await apiClient.sendChatbotMessage(
+          msg,
+          getCurrentPage(),
+          null,
+          null
+        );
+        removeTypingIndicator();
+        appendBotMessage(data.answer, data.suggestions || []);
+      }
     } catch (err) {
       removeTypingIndicator();
       const status = err.status || 0;

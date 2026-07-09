@@ -10,9 +10,6 @@ const CONFIG = {
   // Application Info
   APP_NAME: 'AI Recruitment Platform',
   
-  // Mock Auth Settings
-  ENABLE_MOCK_AUTH: true,
-  
   // Endpoints
   ENDPOINTS: {
     JOB_OFFERS: '/job-offers',

@@ -89,3 +89,9 @@ sam-tests/
 # Coverage
 .coverage
 htmlcov/
+
+# Elastic Beanstalk / Docker deployment
+.env
+.env.*
+*.zip
+.elasticbeanstalk/
