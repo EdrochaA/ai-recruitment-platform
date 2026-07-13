@@ -323,6 +323,34 @@ h1, h2, h3, h4 {
   justify-content: center;
 }
 
+/* Hover-expand when collapsed (only on devices with a real pointer; sidebar is
+   position:fixed so the main content does NOT shift). */
+@media (hover: hover) {
+  .app-shell.sidebar-collapsed .sidebar:hover {
+    width: var(--sidebar-width);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-shell.sidebar-collapsed .sidebar:hover .sidebar__brand,
+  .app-shell.sidebar-collapsed .sidebar:hover .sidebar__label,
+  .app-shell.sidebar-collapsed .sidebar:hover .sidebar__section-toggle span:not(.sidebar__chevron),
+  .app-shell.sidebar-collapsed .sidebar:hover .sidebar__section-toggle .sidebar__chevron,
+  .app-shell.sidebar-collapsed .sidebar:hover .sidebar__collapse-btn span {
+    opacity: 1;
+    width: auto;
+    overflow: visible;
+    pointer-events: auto;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar:hover .sidebar__link {
+    justify-content: flex-start;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar:hover .sidebar__section-toggle {
+    justify-content: space-between;
+  }
+}
+
 /* ── Main column (topbar + content) ──────────────────────────────────────── */
 .app-main {
   flex: 1;

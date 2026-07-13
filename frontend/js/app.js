@@ -160,15 +160,7 @@ class Application {
 
     setTimeout(() => {
       this.updateUIForAuthState();
-      // Navigate based on role
-      const user = authSystem.getCurrentUser();
-      if (user.role === 'hr') {
-        router.navigate('hr-dashboard');
-      } else if (user.role === 'admin') {
-        router.navigate('admin-dashboard');
-      } else {
-        router.navigate('home');
-      }
+      router.navigate('home');
       this.updateNavLinks();
     }, 1200);
   }
@@ -351,6 +343,9 @@ class Application {
         else if (required === 'admin') visible = role === 'admin';
       }
 
+      // Set display on both the <a> (which may carry an inline display:none from the HTML)
+      // and its <li> parent so no empty space remains when hidden.
+      link.style.display = visible ? '' : 'none';
       link.parentElement.style.display = visible ? '' : 'none';
     });
   }
