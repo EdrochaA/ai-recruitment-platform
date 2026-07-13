@@ -1,11 +1,12 @@
 /**
  * Main Application Module
- * Initializes the app and manages overall state
+ * Initializes the app, the sidebar/topbar shell and manages overall state.
  */
 
 class Application {
   constructor() {
     this.initialized = false;
+    this.SIDEBAR_COLLAPSED_KEY = 'ai_recruitment_sidebar_collapsed';
     this.initializationPromise = this.initialize();
   }
 
@@ -24,8 +25,11 @@ class Application {
       // Setup authentication listeners
       this.setupAuthListeners();
 
-      // Setup navigation
+      // Setup navigation (sidebar links)
       this.setupNavigation();
+
+      // Setup the sidebar shell (collapse, mobile toggle, section fold)
+      this.setupShell();
 
       // Check API connectivity
       await this.checkAPIConnectivity();
@@ -35,6 +39,7 @@ class Application {
 
       // Initialize home page
       router.navigate('home');
+      this.updateNavLinks();
 
       this.initialized = true;
       console.log('[App] Initialized successfully');
@@ -69,13 +74,9 @@ class Application {
       router.closeAuthModal();
     });
 
-    // Auth button
+    // Auth (login) button — only relevant when NOT authenticated
     document.getElementById('auth-button')?.addEventListener('click', () => {
-      if (authSystem.isAuthenticated()) {
-        // Show user menu
-        this.toggleUserMenu();
-      } else {
-        // Show auth modal
+      if (!authSystem.isAuthenticated()) {
         router.showAuthModal();
       }
     });
@@ -84,9 +85,11 @@ class Application {
     document.getElementById('logout-button')?.addEventListener('click', () => {
       authSystem.logout();
       UI.showSuccess('Sesión cerrada');
+      this.updateUIForAuthState();
       setTimeout(() => {
         router.navigate('home');
-      }, 1000);
+        this.updateNavLinks();
+      }, 800);
     });
   }
 
@@ -166,7 +169,8 @@ class Application {
       } else {
         router.navigate('home');
       }
-    }, 1500);
+      this.updateNavLinks();
+    }, 1200);
   }
 
   /**
@@ -211,121 +215,167 @@ class Application {
     setTimeout(() => {
       this.updateUIForAuthState();
       router.navigate('home');
-    }, 1500);
+      this.updateNavLinks();
+    }, 1200);
   }
 
   /**
    * Switch auth tab
    */
   switchAuthTab(tab) {
-    // Hide all tabs
     document.getElementById('login-tab').classList.remove('auth-modal__tab--active');
     document.getElementById('signup-tab').classList.remove('auth-modal__tab--active');
-
-    // Show target tab
     document.getElementById(`${tab}-tab`).classList.add('auth-modal__tab--active');
   }
 
   /**
-   * Toggle user menu
-   */
-  toggleUserMenu() {
-    const userMenu = document.getElementById('user-menu');
-    const authBtn = document.getElementById('auth-button');
-
-    if (userMenu.style.display === 'none' || !userMenu.style.display) {
-      userMenu.style.display = 'block';
-    } else {
-      userMenu.style.display = 'none';
-    }
-  }
-
-  /**
-   * Setup navigation
+   * Setup navigation (sidebar links with data-page)
    */
   setupNavigation() {
-    // Navigation links
-    document.querySelectorAll('[data-page]').forEach(link => {
+    document.querySelectorAll('.sidebar__link[data-page]').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        const page = e.target.dataset.page;
-        router.navigate(page);
-        this.updateNavLinks();
+        const page = link.dataset.page;
+        const navigated = router.navigate(page);
+        if (navigated !== false) {
+          this.updateNavLinks();
+          this.closeMobileSidebar();
+        }
       });
-    });
-
-    // Dashboard links
-    document.getElementById('nav-dashboard-link')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const user = authSystem.getCurrentUser();
-      if (user.role === 'hr') {
-        router.navigate('hr-dashboard');
-      } else if (user.role === 'admin') {
-        router.navigate('admin-dashboard');
-      }
-    });
-
-    document.getElementById('dashboard-link')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const user = authSystem.getCurrentUser();
-      if (user.role === 'hr') {
-        router.navigate('hr-dashboard');
-      } else if (user.role === 'admin') {
-        router.navigate('admin-dashboard');
-      }
     });
   }
 
   /**
-   * Update UI based on authentication state
+   * Setup the app shell: collapse button, mobile toggle, section fold.
+   */
+  setupShell() {
+    const shell = document.getElementById('app-shell');
+
+    // Restore collapsed preference (desktop)
+    if (localStorage.getItem(this.SIDEBAR_COLLAPSED_KEY) === 'true') {
+      shell?.classList.add('sidebar-collapsed');
+    }
+
+    // Collapse / expand ("/" button)
+    document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
+      const collapsed = shell.classList.toggle('sidebar-collapsed');
+      localStorage.setItem(this.SIDEBAR_COLLAPSED_KEY, collapsed ? 'true' : 'false');
+    });
+
+    // Mobile hamburger toggle
+    document.getElementById('topbar-menu-btn')?.addEventListener('click', () => {
+      shell.classList.toggle('sidebar-open');
+    });
+
+    // Mobile backdrop closes the sidebar
+    document.getElementById('sidebar-backdrop')?.addEventListener('click', () => {
+      this.closeMobileSidebar();
+    });
+
+    // Collapsible "Plataforma" section
+    document.getElementById('sidebar-section-toggle')?.addEventListener('click', () => {
+      document.getElementById('sidebar-section-platform')?.classList.toggle('collapsed');
+    });
+  }
+
+  closeMobileSidebar() {
+    document.getElementById('app-shell')?.classList.remove('sidebar-open');
+  }
+
+  /**
+   * Update UI based on authentication state.
+   * Controls sidebar visibility, topbar user info and role-based nav items.
    */
   updateUIForAuthState() {
     const isAuthenticated = authSystem.isAuthenticated();
     const user = authSystem.getCurrentUser();
 
+    const shell = document.getElementById('app-shell');
     const authBtn = document.getElementById('auth-button');
     const userMenu = document.getElementById('user-menu');
-    const dashboardLink = document.getElementById('nav-dashboard-link');
-    const dashboardMenuLink = document.getElementById('dashboard-link');
+    const userAvatar = document.getElementById('user-avatar');
+    const logoutBtn = document.getElementById('logout-button');
 
-    if (isAuthenticated) {
-      // Show user menu
-      authBtn.textContent = user.name;
-      document.getElementById('user-info').textContent = `${user.name} (${user.role})`;
+    if (isAuthenticated && user) {
+      // Show sidebar shell
+      shell?.classList.remove('no-sidebar');
 
-      // Show dashboard link if HR or Admin
-      if (user.role === 'hr' || user.role === 'admin') {
-        dashboardLink.style.display = 'inline-block';
-        dashboardMenuLink.style.display = 'block';
-      } else {
-        dashboardLink.style.display = 'none';
-        dashboardMenuLink.style.display = 'none';
+      // Topbar: hide login button, show user info + logout
+      if (authBtn) authBtn.style.display = 'none';
+      if (userMenu) userMenu.style.display = 'flex';
+      if (userAvatar) {
+        userAvatar.style.display = 'flex';
+        userAvatar.textContent = (user.name || user.email || '?').charAt(0).toUpperCase();
       }
+      if (logoutBtn) logoutBtn.style.display = 'inline-flex';
 
-      // Close user menu
-      if (userMenu) userMenu.style.display = 'none';
+      document.getElementById('user-info').textContent = user.email || user.name || '';
+      const roleEl = document.getElementById('user-role');
+      if (roleEl) roleEl.textContent = this.roleLabel(user.role);
+
+      // Role-based visibility of sidebar items
+      this.applyRoleVisibility(user.role);
     } else {
-      // Show login button
-      authBtn.textContent = 'Iniciar sesión';
-      dashboardLink.style.display = 'none';
-      dashboardMenuLink.style.display = 'none';
+      // Hide sidebar shell (full-width content + login)
+      shell?.classList.add('no-sidebar');
+      this.closeMobileSidebar();
 
+      if (authBtn) authBtn.style.display = 'inline-flex';
       if (userMenu) userMenu.style.display = 'none';
+      if (userAvatar) userAvatar.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+
+      this.applyRoleVisibility(null);
     }
   }
 
   /**
-   * Update nav links active state
+   * Show/hide sidebar items based on the user's role.
+   * data-nav-role: 'all' | 'candidate' | 'hr' | 'admin'
+   *   - all   → everyone authenticated
+   *   - hr    → hr and admin
+   *   - admin → admin only
+   */
+  applyRoleVisibility(role) {
+    document.querySelectorAll('.sidebar__link[data-nav-role]').forEach(link => {
+      const required = link.dataset.navRole;
+      let visible = false;
+
+      if (role) {
+        if (required === 'all') visible = true;
+        else if (required === 'candidate') visible = role === 'candidate';
+        else if (required === 'hr') visible = role === 'hr' || role === 'admin';
+        else if (required === 'admin') visible = role === 'admin';
+      }
+
+      link.parentElement.style.display = visible ? '' : 'none';
+    });
+  }
+
+  roleLabel(role) {
+    const labels = { candidate: 'Candidato', hr: 'Recursos Humanos', admin: 'Administrador' };
+    return labels[role] || role || '';
+  }
+
+  /**
+   * Update nav links active state and topbar title.
    */
   updateNavLinks() {
-    document.querySelectorAll('[data-page]').forEach(link => {
-      link.classList.remove('navbar__link--active');
+    document.querySelectorAll('.sidebar__link[data-page]').forEach(link => {
+      link.classList.remove('sidebar__link--active');
     });
 
     const currentPage = router.getCurrentPage();
-    const activeLink = document.querySelector(`[data-page="${currentPage}"]`);
+    const activeLink = document.querySelector(`.sidebar__link[data-page="${currentPage}"]`);
     if (activeLink) {
-      activeLink.classList.add('navbar__link--active');
+      activeLink.classList.add('sidebar__link--active');
+    }
+
+    // Sync topbar title with the current route
+    const route = router.getRoute(currentPage);
+    const titleEl = document.getElementById('topbar-title');
+    if (titleEl && route?.navTitle) {
+      titleEl.textContent = route.navTitle;
     }
   }
 

@@ -1,6 +1,6 @@
 /**
  * Router Module
- * Handles page navigation and routing logic
+ * Handles page navigation and routing logic.
  */
 
 class Router {
@@ -11,40 +11,56 @@ class Router {
   }
 
   /**
-   * Register default routes
+   * Register default routes.
+   * - navTitle: label shown in the topbar for this route.
+   * - requiresRoles: array of roles allowed (any match). Preferred.
+   * - requiresRole: single role (legacy, still supported).
    */
   registerDefaultRoutes() {
     this.register('home', {
-      title: 'Inicio - AI Recruitment Platform',
+      title: 'Inicio - TalentoIA',
+      navTitle: 'Inicio / Ofertas',
       element: 'home-page',
       requiresAuth: false,
     });
 
     this.register('job-detail', {
-      title: 'Detalle de Oferta',
+      title: 'Detalle de Oferta - TalentoIA',
+      navTitle: 'Detalle de Oferta',
       element: 'job-detail-page',
       requiresAuth: false,
     });
 
     this.register('apply', {
-      title: 'Aplicar a Oferta',
+      title: 'Aplicar a Oferta - TalentoIA',
+      navTitle: 'Aplicar a Oferta',
       element: 'apply-page',
       requiresAuth: true,
-      requiresRole: 'candidate',
+      requiresRoles: ['candidate'],
     });
 
     this.register('hr-dashboard', {
-      title: 'Dashboard HR',
+      title: 'Dashboard HR - TalentoIA',
+      navTitle: 'Panel HR',
       element: 'hr-dashboard-page',
       requiresAuth: true,
-      requiresRole: 'hr',
+      requiresRoles: ['hr', 'admin'],
     });
 
     this.register('admin-dashboard', {
-      title: 'Panel de Administrador',
+      title: 'Panel de Administrador - TalentoIA',
+      navTitle: 'Panel Admin',
       element: 'admin-dashboard-page',
       requiresAuth: true,
-      requiresRole: 'admin',
+      requiresRoles: ['admin'],
+    });
+
+    this.register('chat', {
+      title: 'Asistente IA - TalentoIA',
+      navTitle: 'Asistente IA',
+      element: 'chat-page',
+      requiresAuth: true,
+      requiresRoles: ['hr', 'admin'],
     });
   }
 
@@ -53,6 +69,22 @@ class Router {
    */
   register(name, config) {
     this.routes.set(name, config);
+  }
+
+  /**
+   * Check whether the current user satisfies a route's role requirements.
+   */
+  isRoleAllowed(route) {
+    // New-style: array of allowed roles
+    if (Array.isArray(route.requiresRoles) && route.requiresRoles.length > 0) {
+      const user = authSystem.getCurrentUser();
+      return !!user && route.requiresRoles.includes(user.role);
+    }
+    // Legacy: single role
+    if (route.requiresRole) {
+      return authSystem.hasRole(route.requiresRole);
+    }
+    return true;
   }
 
   /**
@@ -75,7 +107,7 @@ class Router {
     }
 
     // Check role
-    if (route.requiresRole && !authSystem.hasRole(route.requiresRole)) {
+    if (route.requiresAuth && !this.isRoleAllowed(route)) {
       UI.showError('No tienes permiso para acceder a esta página');
       return false;
     }
@@ -91,16 +123,16 @@ class Router {
       targetElement.classList.add('page--active');
       this.currentPage = routeName;
 
-      // Update title
+      // Update document title
       document.title = route.title;
 
-      // Call page-specific init if available
+      // Call page-specific init if available (e.g. initChat, initHrDashboard)
       const initFunctionName = 'init' + routeName.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
       if (window[initFunctionName]) {
         window[initFunctionName](params);
       }
 
-      // Scroll to top
+      // Scroll content to top
       window.scrollTo(0, 0);
 
       return true;
@@ -143,4 +175,3 @@ class Router {
 // Export singleton instance
 const router = new Router();
 window.router = router;
-
