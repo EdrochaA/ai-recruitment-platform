@@ -146,10 +146,18 @@ def list_candidates_for_offer(
         if not app.cv_text:
             try:
                 file_bytes = container.file_storage.get(app.cv_storage_key)
-                app.cv_text = container.cv_text_extractor.extract_text(
+                extracted = container.cv_text_extractor.extract_text(
                     file_bytes, filename=app.cv_original_filename
                 )
-                app.cv_processing_status = "processed"
+                if extracted.strip():
+                    app.cv_text = extracted
+                    app.cv_processing_status = "processed"
+                else:
+                    # PDF without a text layer (scanned/image): don't retry every call
+                    app.cv_processing_status = "failed"
+                    app.cv_processing_error = (
+                        "No extractable text (likely scanned/image PDF)"
+                    )
                 container.application_repository.update(app)
                 logger.info("Auto-extracted CV text for application %s", app.id)
             except Exception as exc:
@@ -194,11 +202,19 @@ def get_candidate_cv(
     if not cv_text and app.cv_storage_key:
         try:
             file_bytes = container.file_storage.get(app.cv_storage_key)
-            cv_text = container.cv_text_extractor.extract_text(
+            extracted = container.cv_text_extractor.extract_text(
                 file_bytes, filename=app.cv_original_filename
             )
-            app.cv_text = cv_text
-            app.cv_processing_status = "processed"
+            if extracted.strip():
+                cv_text = extracted
+                app.cv_text = extracted
+                app.cv_processing_status = "processed"
+            else:
+                # PDF without a text layer (scanned/image): don't retry every call
+                app.cv_processing_status = "failed"
+                app.cv_processing_error = (
+                    "No extractable text (likely scanned/image PDF)"
+                )
             container.application_repository.update(app)
         except Exception as exc:
             logger.warning("Could not extract CV text for %s: %s", application_id, exc)
