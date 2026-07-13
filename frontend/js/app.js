@@ -300,6 +300,9 @@ class Application {
       // Show sidebar shell
       shell?.classList.remove('no-sidebar');
 
+      // Ensure the "Plataforma" section is expanded so its nav items are visible
+      document.getElementById('sidebar-section-platform')?.classList.remove('collapsed');
+
       // Topbar: hide login button, show user info + logout
       if (authBtn) authBtn.style.display = 'none';
       if (userMenu) userMenu.style.display = 'flex';
