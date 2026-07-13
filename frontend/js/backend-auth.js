@@ -6,7 +6,7 @@
 class BackendAuthSystem {
   constructor() {
     this.STORAGE_KEY = 'ai_recruitment_auth';
-    this.API_BASE_URL = 'http://localhost:8000';
+    this.API_BASE_URL = window.CONFIG?.API_BASE_URL || 'http://localhost:8000';
   }
 
   /**
