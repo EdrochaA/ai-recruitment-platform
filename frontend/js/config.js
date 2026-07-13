@@ -5,7 +5,7 @@
 
 const CONFIG = {
   // API Configuration
-  API_BASE_URL: localStorage.getItem('apiBaseUrl') || 'http://localhost:8000',
+  API_BASE_URL: localStorage.getItem('apiBaseUrl') || 'http://ai-recruitment-platform-env.eba-vib3ka2v.eu-west-1.elasticbeanstalk.com',
   
   // Application Info
   APP_NAME: 'AI Recruitment Platform',
