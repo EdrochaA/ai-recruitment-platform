@@ -1,5 +1,6 @@
 from app.application.use_cases.create_job_offer import CreateJobOffer
 from app.application.use_cases.list_job_offers import ListJobOffers
+from app.application.use_cases.update_job_offer import UpdateJobOffer
 from app.application.use_cases.create_application import CreateApplication
 from app.application.use_cases.list_applications_by_job_offer import (
     ListApplicationsByJobOffer,
@@ -20,6 +21,11 @@ def get_create_job_offer_use_case() -> CreateJobOffer:
 def get_list_job_offers_use_case() -> ListJobOffers:
     container = get_container()
     return ListJobOffers(container.job_offer_repository)
+
+
+def get_update_job_offer_use_case() -> UpdateJobOffer:
+    container = get_container()
+    return UpdateJobOffer(container.job_offer_repository)
 
 
 def get_create_application_use_case() -> CreateApplication:

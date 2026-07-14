@@ -17,6 +17,11 @@ window.initAdminDashboard = function() {
 function setupCreateHRForm() {
   const form = document.getElementById('create-hr-form');
   if (form) {
+    const passwordInput = document.getElementById('hr-password');
+    if (passwordInput) {
+      passwordInput.setAttribute('autocomplete', 'new-password');
+    }
+
     form.onsubmit = async function(e) {
       e.preventDefault();
       await handleCreateHRUser();
@@ -35,17 +40,17 @@ async function handleCreateHRUser() {
 
   // Validate
   if (!nameInput.value.trim()) {
-    UI.showError('El nombre es requerido');
+    showToast('El nombre es requerido', 'error');
     return;
   }
 
   if (!emailInput.value.trim() || !Validation.isValidEmail(emailInput.value)) {
-    UI.showError('El correo debe ser válido');
+    showToast('El correo debe ser válido', 'error');
     return;
   }
 
   if (!passwordInput.value || !Validation.isValidPassword(passwordInput.value)) {
-    UI.showError('La contraseña debe tener al menos 6 caracteres');
+    showToast('La contraseña debe tener al menos 6 caracteres', 'error');
     return;
   }
 
@@ -57,20 +62,20 @@ async function handleCreateHRUser() {
     );
 
     if (!result.success) {
-      UI.showError(result.error);
+      showToast(result.error, 'error');
       return;
     }
 
-    UI.showSuccess('Usuario HR creado exitosamente');
+    showToast('Usuario HR creado exitosamente', 'success');
 
     // Reset form
-    UI.clearForm('create-hr-form');
+    form.reset();
 
     // Reload users list
     loadHRUsers();
   } catch (error) {
     console.error('Error creating HR user:', error);
-    UI.showError('Error al crear el usuario. Intenta de nuevo.');
+    showToast('Error al crear el usuario. Intenta de nuevo.', 'error');
   }
 }
 
@@ -142,7 +147,7 @@ function handleResetPassword(email) {
   }
 
   if (!Validation.isValidPassword(newPassword)) {
-    UI.showError('La contraseña debe tener al menos 6 caracteres');
+    showToast('La contraseña debe tener al menos 6 caracteres', 'error');
     return;
   }
 
@@ -151,11 +156,11 @@ function handleResetPassword(email) {
     if (users[email]) {
       users[email].password = newPassword;
       localStorage.setItem(authSystem.USERS_KEY, JSON.stringify(users));
-      UI.showSuccess('Contraseña actualizada exitosamente');
+      showToast('Contraseña actualizada exitosamente', 'success');
       loadHRUsers();
     }
   } catch (error) {
     console.error('Error resetting password:', error);
-    UI.showError('Error al actualizar la contraseña');
+    showToast('Error al actualizar la contraseña', 'error');
   }
 }

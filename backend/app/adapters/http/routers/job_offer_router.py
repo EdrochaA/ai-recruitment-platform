@@ -6,13 +6,16 @@ HTTP endpoints for job offer management
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.adapters.http.schemas.job_offer_schemas import (
     CreateJobOfferRequest,
+    UpdateJobOfferRequest,
+    UpdateJobOfferStatusRequest,
     JobOfferResponse,
     JobOfferListResponse,
 )
+from app.shared.dependencies import get_update_job_offer_use_case
 
 router = APIRouter(prefix="/job-offers", tags=["Job Offers"])
 logger = logging.getLogger(__name__)
@@ -49,6 +52,26 @@ def get_user_from_token(authorization: Optional[str] = Header(None)):
         return None
     
     return payload
+
+
+def _require_job_offer_manage_role(payload: dict) -> None:
+    user_role = payload.get("role")
+    if user_role not in ["hr", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only HR and Admin users can manage job offers",
+        )
+
+
+def _map_job_offer_update_error(error: ValueError) -> HTTPException:
+    message = str(error)
+    if message == "JOB_OFFER_NOT_FOUND":
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job offer not found")
+    if message == "JOB_OFFER_FORBIDDEN":
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to modify this job offer")
+    if message == "JOB_OFFER_INVALID_STATUS":
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid job offer status")
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=message)
 
 
 @router.post("", response_model=JobOfferResponse, status_code=status.HTTP_201_CREATED)
@@ -184,4 +207,102 @@ async def get_my_offers(authorization: Optional[str] = Header(None)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching your offers"
+        )
+
+
+@router.put("/{offer_id}", response_model=JobOfferResponse)
+async def update_job_offer(
+    offer_id: str,
+    request: UpdateJobOfferRequest,
+    authorization: Optional[str] = Header(None),
+    use_case = Depends(get_update_job_offer_use_case),
+):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+
+    token = authorization.split(" ")[1]
+    auth_service = get_auth_service()
+    payload = auth_service.token_service.verify_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    _require_job_offer_manage_role(payload)
+
+    try:
+        result = await use_case.execute(
+            offer_id=offer_id,
+            actor_role=payload.get("role"),
+            actor_user_id=payload.get("user_id"),
+            title=request.title,
+            company=request.company,
+            location=request.location,
+            description=request.description,
+            employment_type=request.employment_type,
+            salary_min=request.salary_min,
+            salary_max=request.salary_max,
+            required_skills=request.required_skills,
+            nice_to_have_skills=request.nice_to_have_skills,
+        )
+        return result
+    except ValueError as exc:
+        raise _map_job_offer_update_error(exc)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating job offer",
+        )
+
+
+@router.patch("/{offer_id}/status", response_model=JobOfferResponse)
+async def update_job_offer_status(
+    offer_id: str,
+    request: UpdateJobOfferStatusRequest,
+    authorization: Optional[str] = Header(None),
+    use_case = Depends(get_update_job_offer_use_case),
+):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+
+    token = authorization.split(" ")[1]
+    auth_service = get_auth_service()
+    payload = auth_service.token_service.verify_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+    _require_job_offer_manage_role(payload)
+
+    try:
+        result = await use_case.execute(
+            offer_id=offer_id,
+            actor_role=payload.get("role"),
+            actor_user_id=payload.get("user_id"),
+            status=request.status,
+        )
+        return result
+    except ValueError as exc:
+        raise _map_job_offer_update_error(exc)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating job offer status",
         )

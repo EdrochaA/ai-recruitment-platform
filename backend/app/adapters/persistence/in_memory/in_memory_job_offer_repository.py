@@ -21,6 +21,14 @@ class InMemoryJobOfferRepository(JobOfferRepository):
                 return job_offer
         return None
 
+    def update_job_offer(self, offer_id: str, job_offer: JobOffer) -> Optional[JobOffer]:
+        for index, existing_offer in enumerate(self._job_offers):
+            if existing_offer.id == offer_id:
+                job_offer.id = existing_offer.id
+                self._job_offers[index] = job_offer
+                return job_offer
+        return None
+
     def find_by_title(self, title: str) -> Optional[JobOffer]:
         """Find by partial, case-insensitive title match."""
         title_lower = title.lower().strip()

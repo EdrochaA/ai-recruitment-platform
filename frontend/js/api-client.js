@@ -107,6 +107,19 @@ class APIClient {
     });
   }
 
+  async updateJobOffer(offerId, offerData) {
+    return this.request(`/job-offers/${offerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(offerData),
+    });
+  }
+
+  async closeJobOffer(offerId) {
+    return this.updateJobOffer(offerId, {
+      status: 'closed',
+    });
+  }
+
   /**
    * Applications API
    */

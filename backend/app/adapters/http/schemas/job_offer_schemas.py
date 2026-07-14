@@ -3,7 +3,7 @@ JobOffer HTTP Request/Response Schemas
 """
 
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime
 
 
@@ -19,6 +19,24 @@ class CreateJobOfferRequest(BaseModel):
     employment_type: Optional[str] = "full-time"
     required_skills: Optional[List[str]] = None
     nice_to_have_skills: Optional[List[str]] = None
+
+
+class UpdateJobOfferRequest(BaseModel):
+    """Request schema for updating a job offer"""
+    title: Optional[str] = None
+    company: Optional[str] = None
+    location: Optional[str] = None
+    description: Optional[str] = None
+    employment_type: Optional[str] = None
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
+    required_skills: Optional[List[str]] = None
+    nice_to_have_skills: Optional[List[str]] = None
+
+
+class UpdateJobOfferStatusRequest(BaseModel):
+    """Request schema for updating job offer status"""
+    status: Literal["open", "closed"]
 
 
 class JobOfferResponse(BaseModel):

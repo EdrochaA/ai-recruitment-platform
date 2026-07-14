@@ -8,6 +8,7 @@ let selectedJobId = null;
 let allApplications = {};
 let myOffersSearchTerm = '';
 let myOffersSearchTimeout = null;
+let editingOfferId = null;
 
 /**
  * Initialize HR dashboard
@@ -37,7 +38,7 @@ async function loadHRJobs() {
   } catch (error) {
     UI.hideLoading();
     console.error('Error loading HR jobs:', error);
-    UI.showError('Error al cargar las ofertas. Intenta de nuevo.');
+    showToast('Error al cargar las ofertas. Intenta de nuevo.', 'error');
   }
 }
 
@@ -233,6 +234,7 @@ function closeOfferDetails() {
     panel.style.display = 'none';
   }
   selectedJobId = null;
+  editingOfferId = null;
 }
 
 /**
@@ -243,6 +245,9 @@ function renderOfferDetailsPanel(job) {
   if (!contentDiv) return;
   
   const applications = allApplications[job.id] || [];
+  const currentUser = authSystem.getCurrentUser();
+  const canManageOffer = !!currentUser && ['hr', 'admin'].includes(currentUser.role);
+  const isEditing = editingOfferId === job.id;
   console.log('Applications loaded:', applications);
   
   const applicationsHtml = applications.length > 0 ? `
@@ -322,13 +327,79 @@ function renderOfferDetailsPanel(job) {
         
         <div class="offer-detail__section">
           <h3>Acciones</h3>
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             ${applications.length > 0 ? `<button class="btn btn--primary" onclick="downloadAllCVs('${job.id}', '${job.title || 'oferta'}')">Descargar todos los CVs</button>` : ''}
-            ${job.status === 'open' ? `
-              <button class="btn btn--warning" onclick="closeOfferStatus()">Cerrar Oferta</button>
-            ` : ''}
+            ${canManageOffer ? `<button class="btn btn--secondary" id="edit-offer-btn" type="button">Editar oferta</button>` : ''}
+            ${job.status === 'open' ? `<button class="btn btn--warning" id="close-offer-btn" type="button">Cerrar oferta</button>` : ''}
           </div>
         </div>
+
+        ${canManageOffer ? `
+        <div class="offer-detail__section">
+          <h3>${isEditing ? 'Editar oferta' : 'Formulario de edición'}</h3>
+          ${isEditing ? `
+            <form id="edit-offer-form" class="form">
+              <div class="form__group">
+                <label for="edit-offer-title" class="form__label">Título del puesto</label>
+                <input type="text" id="edit-offer-title" class="form__input" required>
+              </div>
+
+              <div class="form__group">
+                <label for="edit-offer-company" class="form__label">Empresa</label>
+                <input type="text" id="edit-offer-company" class="form__input" required>
+              </div>
+
+              <div class="form__group">
+                <label for="edit-offer-location" class="form__label">Ubicación</label>
+                <input type="text" id="edit-offer-location" class="form__input" required>
+              </div>
+
+              <div class="form__group">
+                <label for="edit-offer-description" class="form__label">Descripción del puesto</label>
+                <textarea id="edit-offer-description" class="form__textarea" required></textarea>
+              </div>
+
+              <div class="form__group">
+                <label for="edit-offer-employment-type" class="form__label">Tipo de empleo</label>
+                <select id="edit-offer-employment-type" class="form__input">
+                  <option value="full-time">Tiempo completo</option>
+                  <option value="part-time">Tiempo parcial</option>
+                  <option value="contract">Contrato</option>
+                  <option value="freelance">Freelance</option>
+                </select>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form__group">
+                  <label for="edit-offer-salary-min" class="form__label">Salario mínimo (EUR)</label>
+                  <input type="number" id="edit-offer-salary-min" class="form__input" min="0">
+                </div>
+                <div class="form__group">
+                  <label for="edit-offer-salary-max" class="form__label">Salario máximo (EUR)</label>
+                  <input type="number" id="edit-offer-salary-max" class="form__input" min="0">
+                </div>
+              </div>
+
+              <div class="form__group">
+                <label for="edit-offer-required-skills" class="form__label">Habilidades requeridas</label>
+                <input type="text" id="edit-offer-required-skills" class="form__input" placeholder="Python, FastAPI, PostgreSQL">
+              </div>
+
+              <div class="form__group">
+                <label for="edit-offer-nice-skills" class="form__label">Habilidades deseables</label>
+                <input type="text" id="edit-offer-nice-skills" class="form__input" placeholder="Docker, Kubernetes, AWS">
+              </div>
+
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="submit" class="btn btn--primary">Guardar cambios</button>
+                <button type="button" class="btn btn--outline" id="cancel-edit-offer">Cancelar</button>
+              </div>
+            </form>
+          ` : `
+            <p style="color: var(--text-muted);">Pulsa en editar para modificar esta oferta sin salir del panel.</p>
+          `}
+        </div>
+        ` : ''}
         
         ${applicationsHtml}
       </div>
@@ -336,11 +407,53 @@ function renderOfferDetailsPanel(job) {
   `;
   
   contentDiv.innerHTML = content;
+
+  if (canManageOffer) {
+    document.getElementById('edit-offer-btn')?.addEventListener('click', () => {
+      editingOfferId = job.id;
+      renderOfferDetailsPanel(job);
+    });
+
+    document.getElementById('close-offer-btn')?.addEventListener('click', async () => {
+      await closeOfferStatus(job);
+    });
+
+    if (isEditing) {
+      setupEditOfferForm(job);
+    }
+  }
+}
+
+function setupEditOfferForm(job) {
+  const form = document.getElementById('edit-offer-form');
+  if (!form) return;
+
+  document.getElementById('edit-offer-title').value = job.title || '';
+  document.getElementById('edit-offer-company').value = job.company || '';
+  document.getElementById('edit-offer-location').value = job.location || '';
+  document.getElementById('edit-offer-description').value = job.description || '';
+  document.getElementById('edit-offer-employment-type').value = job.employment_type || 'full-time';
+  document.getElementById('edit-offer-salary-min').value = job.salary_min || '';
+  document.getElementById('edit-offer-salary-max').value = job.salary_max || '';
+  document.getElementById('edit-offer-required-skills').value = Array.isArray(job.required_skills) ? job.required_skills.join(', ') : '';
+  document.getElementById('edit-offer-nice-skills').value = Array.isArray(job.nice_to_have_skills) ? job.nice_to_have_skills.join(', ') : '';
+
+  form.onsubmit = async function(e) {
+    e.preventDefault();
+    await handleSaveOfferEdits(job);
+    return false;
+  };
+
+  document.getElementById('cancel-edit-offer')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    editingOfferId = null;
+    renderOfferDetailsPanel(job);
+  });
 }
 
 window.openApplicationCV = async function(applicationId) {
   if (!apiClient || typeof apiClient.openCV !== 'function') {
-    UI.showError('La descarga de CV no está disponible todavía en el backend.');
+    showToast('La descarga de CV no está disponible todavía en el backend.', 'error');
     return;
   }
 
@@ -349,28 +462,108 @@ window.openApplicationCV = async function(applicationId) {
   } catch (error) {
     console.error('Error opening CV:', error);
     if (error?.status === 404) {
-      UI.showError('El endpoint de descarga o el CV no está disponible todavía.');
+      showToast('El endpoint de descarga o el CV no está disponible todavía.', 'error');
       return;
     }
 
-    UI.showError(error.message || 'No se pudo abrir el CV');
+    showToast(error.message || 'No se pudo abrir el CV', 'error');
   }
 };
 
 /**
  * Close offer status
  */
-async function closeOfferStatus() {
-  if (!selectedJobId) return;
-  
-  if (!confirm('¿Seguro que deseas cerrar esta oferta? Los candidatos no podrán aplicar')) {
+async function closeOfferStatus(job = null) {
+  const targetJob = job || hrJobs.find(j => j.id === selectedJobId);
+  if (!targetJob) return;
+
+  const confirmed = await showConfirmDialog('¿Seguro que deseas cerrar esta oferta? Los candidatos no podrán aplicar', {
+    title: 'Cerrar oferta',
+    confirmText: 'Cerrar oferta',
+    cancelText: 'Cancelar',
+  });
+
+  if (!confirmed) {
     return;
   }
   
-  // TODO: Implement close offer endpoint
-  UI.showSuccess('Oferta cerrada correctamente');
-  closeOfferDetails();
-  loadHRJobs();
+  try {
+    UI.showLoading();
+    const updatedOffer = await apiClient.closeJobOffer(targetJob.id);
+    const mergedOffer = updatedOffer || { ...targetJob, status: 'closed' };
+
+    hrJobs = hrJobs.map(item => item.id === targetJob.id ? { ...item, ...mergedOffer, status: 'closed' } : item);
+    editingOfferId = null;
+
+    renderMyOffers();
+    renderOfferDetailsPanel(hrJobs.find(item => item.id === targetJob.id) || mergedOffer);
+    UI.hideLoading();
+    showToast('Oferta cerrada correctamente', 'success');
+  } catch (error) {
+    UI.hideLoading();
+    console.error('Error closing offer:', error);
+    showToast(error.message || 'No se pudo cerrar la oferta', 'error');
+  }
+}
+
+async function handleSaveOfferEdits(job) {
+  const titleInput = document.getElementById('edit-offer-title');
+  const companyInput = document.getElementById('edit-offer-company');
+  const locationInput = document.getElementById('edit-offer-location');
+  const descriptionInput = document.getElementById('edit-offer-description');
+  const employmentTypeSelect = document.getElementById('edit-offer-employment-type');
+  const salaryMinInput = document.getElementById('edit-offer-salary-min');
+  const salaryMaxInput = document.getElementById('edit-offer-salary-max');
+  const requiredSkillsInput = document.getElementById('edit-offer-required-skills');
+  const niceSkillsInput = document.getElementById('edit-offer-nice-skills');
+
+  if (!titleInput.value.trim() || !companyInput.value.trim() || !locationInput.value.trim() || !descriptionInput.value.trim()) {
+    showToast('Título, empresa, ubicación y descripción son requeridos', 'error');
+    return;
+  }
+
+  try {
+    UI.showLoading();
+
+    const requiredSkills = requiredSkillsInput.value
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const niceSkills = niceSkillsInput.value
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const offerData = {
+      title: titleInput.value.trim(),
+      company: companyInput.value.trim(),
+      location: locationInput.value.trim(),
+      description: descriptionInput.value.trim(),
+      employment_type: employmentTypeSelect.value,
+      salary_min: parseFloat(salaryMinInput.value) || 0,
+      salary_max: parseFloat(salaryMaxInput.value) || 0,
+      required_skills: requiredSkills,
+      nice_to_have_skills: niceSkills,
+      status: job.status,
+    };
+
+    const updatedOffer = await apiClient.updateJobOffer(job.id, offerData);
+    const mergedOffer = updatedOffer || { ...job, ...offerData };
+
+    hrJobs = hrJobs.map(item => item.id === job.id ? { ...item, ...mergedOffer } : item);
+    editingOfferId = null;
+
+    renderMyOffers();
+    renderOfferDetailsPanel(hrJobs.find(item => item.id === job.id) || mergedOffer);
+
+    UI.hideLoading();
+    showToast('¡Oferta de trabajo actualizada exitosamente!', 'success');
+  } catch (error) {
+    UI.hideLoading();
+    console.error('Error updating offer:', error);
+    showToast(error.message || 'Error al actualizar la oferta. Intenta de nuevo.', 'error');
+  }
 }
 
 /**
@@ -389,7 +582,7 @@ async function handleCreateOffer() {
 
   // Validate required fields
   if (!titleInput.value.trim() || !companyInput.value.trim() || !locationInput.value.trim() || !descriptionInput.value.trim()) {
-    UI.showError('Título, empresa, ubicación y descripción son requeridos');
+    showToast('Título, empresa, ubicación y descripción son requeridos', 'error');
     return;
   }
 
@@ -422,7 +615,7 @@ async function handleCreateOffer() {
     const newOffer = await apiClient.createJobOffer(offerData);
 
     UI.hideLoading();
-    UI.showSuccess('¡Oferta de trabajo creada exitosamente!');
+    showToast('¡Oferta de trabajo creada exitosamente!', 'success');
 
     // Reset form
     document.getElementById('create-offer-form').reset();
@@ -432,7 +625,7 @@ async function handleCreateOffer() {
   } catch (error) {
     UI.hideLoading();
     console.error('Error creating offer:', error);
-    UI.showError(error.message || 'Error al crear la oferta. Intenta de nuevo.');
+    showToast(error.message || 'Error al crear la oferta. Intenta de nuevo.', 'error');
   }
 }
 
@@ -453,7 +646,7 @@ async function loadApplicationsForJob(jobId) {
   } catch (error) {
     UI.hideLoading();
     console.error('Error loading applications:', error);
-    UI.showError('Error al cargar las candidaturas. Intenta de nuevo.');
+    showToast('Error al cargar las candidaturas. Intenta de nuevo.', 'error');
   }
 }
 
@@ -532,7 +725,7 @@ function getCVActionHtml(app) {
 
 window.downloadApplicationCV = async function(applicationId) {
   if (!apiClient || typeof apiClient.downloadCV !== 'function') {
-    UI.showError('La descarga de CV no está disponible todavía.');
+    showToast('La descarga de CV no está disponible todavía.', 'error');
     return;
   }
 
@@ -540,21 +733,21 @@ window.downloadApplicationCV = async function(applicationId) {
     await apiClient.downloadCV(applicationId);
   } catch (error) {
     console.error('Error downloading CV:', error);
-    UI.showError(error.message || 'No se pudo descargar el CV');
+    showToast(error.message || 'No se pudo descargar el CV', 'error');
   }
 };
 
 window.downloadAllCVs = async function(jobOfferId, jobOfferTitle) {
   if (!apiClient || typeof apiClient.downloadJobOfferCVs !== 'function') {
-    UI.showError('La descarga masiva de CVs no está disponible todavía.');
+    showToast('La descarga masiva de CVs no está disponible todavía.', 'error');
     return;
   }
 
   try {
     await apiClient.downloadJobOfferCVs(jobOfferId, jobOfferTitle);
-    UI.showSuccess(`CVs descargados en la carpeta ${jobOfferTitle || 'oferta'}`);
+    showToast(`CVs descargados en la carpeta ${jobOfferTitle || 'oferta'}`, 'success');
   } catch (error) {
     console.error('Error downloading all CVs:', error);
-    UI.showError(error.message || 'No se pudieron descargar los CVs');
+    showToast(error.message || 'No se pudieron descargar los CVs', 'error');
   }
 };

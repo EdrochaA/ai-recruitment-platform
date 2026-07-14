@@ -3,6 +3,96 @@
  * Initializes the app, the sidebar/topbar shell and manages overall state.
  */
 
+function ensureToastContainer() {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(container);
+  }
+  return container;
+}
+
+window.showToast = function(message, type = 'info') {
+  if (typeof document === 'undefined') return;
+
+  const container = ensureToastContainer();
+  const visibleToasts = container.querySelectorAll('.toast');
+  if (visibleToasts.length >= 3) {
+    visibleToasts[0].remove();
+  }
+
+  const toast = document.createElement('div');
+  const iconMap = {
+    success: '✅',
+    error: '❌',
+    info: 'ℹ️',
+  };
+  const safeType = ['success', 'error', 'info'].includes(type) ? type : 'info';
+
+  toast.className = `toast toast--${safeType}`;
+  toast.innerHTML = `
+    <span class="toast__icon" aria-hidden="true">${iconMap[safeType]}</span>
+    <div class="toast__body">${String(message || '')}</div>
+    <button type="button" class="toast__close" aria-label="Cerrar aviso">×</button>
+  `;
+
+  const removeToast = () => {
+    if (!toast.isConnected) return;
+    toast.classList.add('toast--closing');
+    window.setTimeout(() => toast.remove(), 220);
+  };
+
+  const timerId = window.setTimeout(removeToast, 3000);
+  toast.querySelector('.toast__close').addEventListener('click', () => {
+    window.clearTimeout(timerId);
+    removeToast();
+  });
+
+  container.appendChild(toast);
+  window.requestAnimationFrame(() => {
+    toast.classList.add('toast--visible');
+  });
+};
+
+window.showConfirmDialog = function(message, options = {}) {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'modal confirm-modal';
+    modal.style.display = 'flex';
+
+    const title = options.title || 'Confirmación';
+    const confirmText = options.confirmText || 'Confirmar';
+    const cancelText = options.cancelText || 'Cancelar';
+
+    modal.innerHTML = `
+      <div class="modal__overlay"></div>
+      <div class="modal__content confirm-modal__content">
+        <h3 style="margin-bottom: var(--space-3);">${title}</h3>
+        <p style="margin-bottom: var(--space-5); color: var(--text-muted);">${message}</p>
+        <div style="display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap;">
+          <button type="button" class="btn btn--outline" data-confirm-action="cancel">${cancelText}</button>
+          <button type="button" class="btn btn--primary" data-confirm-action="confirm">${confirmText}</button>
+        </div>
+      </div>
+    `;
+
+    const cleanup = (result) => {
+      modal.remove();
+      resolve(result);
+    };
+
+    modal.querySelector('.modal__overlay').addEventListener('click', () => cleanup(false));
+    modal.querySelector('[data-confirm-action="cancel"]').addEventListener('click', () => cleanup(false));
+    modal.querySelector('[data-confirm-action="confirm"]').addEventListener('click', () => cleanup(true));
+
+    document.body.appendChild(modal);
+  });
+};
+
 class Application {
   constructor() {
     this.initialized = false;
@@ -47,7 +137,7 @@ class Application {
       return true;
     } catch (error) {
       console.error('[App] Initialization error:', error);
-      UI.showError('Error inicializando la aplicación');
+      showToast('Error inicializando la aplicación', 'error');
       return false;
     }
   }
@@ -83,13 +173,21 @@ class Application {
 
     // Logout button
     document.getElementById('logout-button')?.addEventListener('click', () => {
-      authSystem.logout();
-      UI.showSuccess('Sesión cerrada');
-      this.updateUIForAuthState();
-      setTimeout(() => {
-        router.navigate('home');
-        this.updateNavLinks();
-      }, 800);
+      showConfirmDialog('¿Cerrar sesión?', {
+        title: 'Cerrar sesión',
+        confirmText: 'Cerrar sesión',
+        cancelText: 'Cancelar',
+      }).then((confirmed) => {
+        if (!confirmed) return;
+
+        authSystem.logout();
+        showToast('Sesión cerrada', 'info');
+        this.updateUIForAuthState();
+        setTimeout(() => {
+          router.navigate('home');
+          this.updateNavLinks();
+        }, 800);
+      });
     });
   }
 
@@ -143,18 +241,18 @@ class Application {
     const password = passwordInput.value;
 
     if (!email || !password) {
-      UI.showError('Correo y contraseña son requeridos');
+      showToast('Correo y contraseña son requeridos', 'error');
       return;
     }
 
     const result = await authSystem.login(email, password);
 
     if (!result.success) {
-      UI.showError(result.error);
+      showToast(result.error, 'error');
       return;
     }
 
-    UI.showSuccess(`¡Bienvenido, ${result.user.name}!`);
+    showToast(`¡Bienvenido, ${result.user.name}!`, 'success');
     router.closeAuthModal();
     UI.clearForm('login-form');
 
@@ -178,17 +276,17 @@ class Application {
     const password = passwordInput.value;
 
     if (!name || !email || !password) {
-      UI.showError('Todos los campos son requeridos');
+      showToast('Todos los campos son requeridos', 'error');
       return;
     }
 
     if (!Validation.isValidEmail(email)) {
-      UI.showError('El correo no es válido');
+      showToast('El correo no es válido', 'error');
       return;
     }
 
     if (!Validation.isValidPassword(password)) {
-      UI.showError('La contraseña debe tener al menos 6 caracteres');
+      showToast('La contraseña debe tener al menos 6 caracteres', 'error');
       return;
     }
 
@@ -196,11 +294,11 @@ class Application {
     const result = await authSystem.signup(name, email, password);
 
     if (!result.success) {
-      UI.showError(result.error);
+      showToast(result.error, 'error');
       return;
     }
 
-    UI.showSuccess('¡Cuenta creada exitosamente!');
+    showToast('¡Cuenta creada exitosamente!', 'success');
     router.closeAuthModal();
     UI.clearForm('signup-form');
 

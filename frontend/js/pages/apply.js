@@ -9,19 +9,26 @@ let createdApplicationId = null;
 /**
  * Initialize apply page
  */
-window.initApply = function(params) {
+window.initApply = async function(params) {
   if (params && params.job) {
     applicationJob = params.job;
   }
 
   if (!applicationJob) {
-    UI.showError('Oferta no encontrada');
+    showToast('Oferta no encontrada', 'error');
     router.navigate('home');
     return;
   }
 
-  setupApplyForm();
   setupBackButton();
+
+  const alreadyApplied = await hasAlreadyApplied(applicationJob.id);
+  if (alreadyApplied) {
+    renderAlreadyAppliedState();
+    return;
+  }
+
+  setupApplyForm();
   populateUserData();
 };
 
@@ -42,14 +49,14 @@ function setupApplyForm() {
     if (file) {
       // Validate file
       if (!Validation.isValidPDF(file)) {
-        UI.showError('El archivo debe ser un PDF válido');
+        showToast('El archivo debe ser un PDF válido', 'error');
         cvInput.value = '';
         cvNameEl.textContent = '';
         return;
       }
 
       if (!Validation.isValidFileSize(file)) {
-        UI.showError('El archivo no puede superar 5 MB');
+        showToast('El archivo no puede superar 5 MB', 'error');
         cvInput.value = '';
         cvNameEl.textContent = '';
         return;
@@ -73,9 +80,57 @@ function setupApplyForm() {
 function populateUserData() {
   const user = authSystem.getCurrentUser();
   if (user) {
-    document.getElementById('apply-name').value = user.name || '';
-    document.getElementById('apply-email').value = user.email || '';
+    const nameInput = document.getElementById('apply-name');
+    const emailInput = document.getElementById('apply-email');
+    const resolvedName = user.name || user.full_name || '';
+
+    nameInput.value = resolvedName;
+    emailInput.value = user.email || '';
+
+    [nameInput, emailInput].forEach((input) => {
+      input.readOnly = true;
+      input.setAttribute('readonly', 'readonly');
+      input.classList.add('form__input--readonly');
+    });
   }
+}
+
+async function hasAlreadyApplied(jobOfferId) {
+  const user = authSystem.getCurrentUser();
+  if (!user?.email) {
+    return false;
+  }
+
+  try {
+    const applications = await apiClient.getApplicationsByJobOffer(jobOfferId);
+    return applications.some((application) => {
+      const candidateEmail = String(application.candidate_email || '').trim().toLowerCase();
+      return candidateEmail && candidateEmail === String(user.email).trim().toLowerCase();
+    });
+  } catch (error) {
+    console.error('Error checking existing application:', error);
+    showToast('No se pudo comprobar si ya habías aplicado a esta oferta', 'info');
+    return false;
+  }
+}
+
+function renderAlreadyAppliedState() {
+  const formCard = document.querySelector('#apply-page .form-card');
+  if (!formCard) return;
+
+  formCard.innerHTML = `
+    <div class="empty-state" style="padding: var(--space-6) var(--space-4);">
+      <div class="empty-state__icon">ℹ️</div>
+      <h2 class="empty-state__title">Ya has aplicado a esta oferta</h2>
+      <p class="empty-state__text">Puedes volver al listado para explorar otras oportunidades.</p>
+      <a href="#" class="btn btn--primary" id="back-to-jobs-list">Volver al listado</a>
+    </div>
+  `;
+
+  document.getElementById('back-to-jobs-list')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    router.navigate('home');
+  });
 }
 
 /**
@@ -88,17 +143,17 @@ async function handleApplicationSubmit() {
 
   // Validate form
   if (!nameInput.value.trim()) {
-    UI.showError('El nombre es requerido');
+    showToast('El nombre es requerido', 'error');
     return;
   }
 
   if (!emailInput.value.trim()) {
-    UI.showError('El correo es requerido');
+    showToast('El correo es requerido', 'error');
     return;
   }
 
   if (!cvInput.files[0]) {
-    UI.showError('Debes adjuntar un CV');
+    showToast('Debes adjuntar un CV', 'error');
     return;
   }
 
@@ -119,7 +174,7 @@ async function handleApplicationSubmit() {
     await apiClient.uploadCV(createdApplicationId, cvFile);
 
     UI.hideLoading();
-    UI.showSuccess('¡Tu candidatura ha sido enviada exitosamente!');
+    showToast('¡Tu candidatura ha sido enviada exitosamente!', 'success');
 
     // Reset form
     UI.clearForm('apply-form');
@@ -134,7 +189,7 @@ async function handleApplicationSubmit() {
     console.error('Error submitting application:', error);
     
     const errorMessage = error.message || 'Error al enviar la candidatura. Por favor, intenta de nuevo.';
-    UI.showError(errorMessage);
+    showToast(errorMessage, 'error');
   }
 }
 
