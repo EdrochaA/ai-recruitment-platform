@@ -31,9 +31,6 @@ class UpdateJobOffer:
         if actor_role not in {"hr", "admin"}:
             raise ValueError("JOB_OFFER_FORBIDDEN")
 
-        if actor_role == "hr" and offer.created_by != actor_user_id:
-            raise ValueError("JOB_OFFER_FORBIDDEN")
-
         updated_offer = JobOffer(
             id=offer.id,
             title=title if title is not None else offer.title,
