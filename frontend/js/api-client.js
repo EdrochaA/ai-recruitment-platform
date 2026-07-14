@@ -115,8 +115,11 @@ class APIClient {
   }
 
   async closeJobOffer(offerId) {
-    return this.updateJobOffer(offerId, {
-      status: 'closed',
+    return this.request(`/job-offers/${offerId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'closed',
+      }),
     });
   }
 
