@@ -107,7 +107,15 @@ class AgentCoreChatbotService(ChatbotService):
 
         parsed_json = self._try_parse_json(raw_text)
         if isinstance(parsed_json, dict):
-            answer = str(parsed_json.get("answer") or raw_text).strip()
+            answer_value = parsed_json.get("answer") or raw_text
+            if isinstance(answer_value, str):
+                try:
+                    import json as _json
+
+                    answer_value = _json.loads(answer_value)
+                except (ValueError, TypeError):
+                    pass
+            answer = str(answer_value).strip()
             intent = str(parsed_json.get("intent") or "general_help").strip() or "general_help"
             suggestions = parsed_json.get("suggestions") or []
             if not isinstance(suggestions, list):
