@@ -123,8 +123,9 @@ class AgentCoreChatbotService(ChatbotService):
             suggestions = [str(item).strip() for item in suggestions if str(item).strip()]
             return self._safe_response(answer=answer, intent=intent, suggestions=suggestions)
 
+        clean_answer = parsed_json if isinstance(parsed_json, str) else raw_text
         return self._safe_response(
-            answer=raw_text,
+            answer=clean_answer,
             intent="general_help",
             suggestions=[],
         )
