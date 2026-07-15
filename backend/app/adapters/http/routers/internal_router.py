@@ -115,22 +115,41 @@ def get_job_offer_by_title(
 
 @router.get("/candidates", response_model=list[CandidateSummary])
 def list_candidates_for_offer(
-    job_offer_title: str = Query(..., description="Job offer title to search candidates for"),
+    job_offer_title: str | None = Query(None, description="Job offer title to search candidates for"),
+    job_offer_id: str | None = Query(None, description="Job offer ID (preferred over title for disambiguation)"),
 ):
     """Return all candidates with CVs for a given offer. Auto-extracts CV text if not yet processed."""
+    if not job_offer_id and not job_offer_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provide job_offer_id or job_offer_title",
+        )
+
     container = get_container()
 
     # Resolve offer
     offer = None
-    if hasattr(container.job_offer_repository, "find_by_title"):
-        offer = container.job_offer_repository.find_by_title(job_offer_title)
+    if job_offer_id:
+        if hasattr(container.job_offer_repository, "find_by_id"):
+            offer = container.job_offer_repository.find_by_id(job_offer_id)
+        elif hasattr(container.job_offer_repository, "get_by_id"):
+            offer = container.job_offer_repository.get_by_id(job_offer_id)
+        else:
+            all_offers = container.job_offer_repository.list_all()
+            for o in all_offers:
+                if o.id == job_offer_id:
+                    offer = o
+                    break
     else:
-        all_offers = container.job_offer_repository.list_all()
-        title_lower = job_offer_title.lower()
-        for o in all_offers:
-            if title_lower in o.title.lower() or o.title.lower() in title_lower:
-                offer = o
-                break
+        if hasattr(container.job_offer_repository, "find_by_title"):
+            offer = container.job_offer_repository.find_by_title(job_offer_title)
+        else:
+            all_offers = container.job_offer_repository.list_all()
+            title_lower = job_offer_title.lower()
+            for o in all_offers:
+                if title_lower in o.title.lower() or o.title.lower() in title_lower:
+                    offer = o
+                    break
 
     if not offer:
         raise HTTPException(
