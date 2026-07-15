@@ -75,20 +75,33 @@ function renderMyOffers() {
  * Create offer card
  */
 function createOfferCard(job) {
+  const isClosed = job.status === 'closed';
+
   return `
     <article class="job-card" data-job-id="${job.id}" style="cursor: pointer;">
-      <header class="job-card__header">
+      <header class="job-card__header" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
         <h3 class="job-card__title">${Format.truncate(job.title, 50)}</h3>
+        ${getOfferStatusBadge(job.status)}
       </header>
       <section class="job-card__body">
         <p class="job-card__location">📍 ${job.location || '-'}</p>
         <p class="job-card__description">${Format.truncate(job.description || '-', 100)}</p>
       </section>
-      <footer class="job-card__footer">
-        <div class="job-card__meta"></div>
+      <footer class="job-card__footer" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <div class="job-card__meta">
+          <span style="color: var(--text-muted); font-size: 0.9rem;">${isClosed ? 'Oferta cerrada' : 'Oferta abierta'}</span>
+        </div>
       </footer>
     </article>
   `;
+}
+
+function getOfferStatusBadge(status) {
+  const isClosed = status === 'closed';
+  const label = isClosed ? 'Cerrada' : 'Abierta';
+  const className = isClosed ? 'badge badge--secondary' : 'badge badge--success';
+
+  return `<span class="${className}">${label}</span>`;
 }
 
 /**
@@ -330,7 +343,7 @@ function renderOfferDetailsPanel(job) {
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             ${applications.length > 0 ? `<button class="btn btn--primary" onclick="downloadAllCVs('${job.id}', '${job.title || 'oferta'}')">Descargar todos los CVs</button>` : ''}
             ${canManageOffer ? `<button class="btn btn--secondary" id="edit-offer-btn" type="button">Editar oferta</button>` : ''}
-            ${job.status === 'open' ? `<button class="btn btn--warning" id="close-offer-btn" type="button">Cerrar oferta</button>` : ''}
+            ${canManageOffer ? `<button class="btn ${job.status === 'closed' ? 'btn--secondary' : 'btn--warning'}" id="toggle-offer-status-btn" type="button">${job.status === 'closed' ? 'Reabrir oferta' : 'Cerrar oferta'}</button>` : ''}
           </div>
         </div>
 
@@ -414,7 +427,7 @@ function renderOfferDetailsPanel(job) {
       renderOfferDetailsPanel(job);
     });
 
-    document.getElementById('close-offer-btn')?.addEventListener('click', async () => {
+    document.getElementById('toggle-offer-status-btn')?.addEventListener('click', async () => {
       await closeOfferStatus(job);
     });
 
@@ -477,9 +490,17 @@ async function closeOfferStatus(job = null) {
   const targetJob = job || hrJobs.find(j => j.id === selectedJobId);
   if (!targetJob) return;
 
-  const confirmed = await showConfirmDialog('¿Seguro que deseas cerrar esta oferta? Los candidatos no podrán aplicar', {
-    title: 'Cerrar oferta',
-    confirmText: 'Cerrar oferta',
+  const isClosed = targetJob.status === 'closed';
+  const nextStatus = isClosed ? 'open' : 'closed';
+  const actionTitle = isClosed ? 'Reabrir oferta' : 'Cerrar oferta';
+  const confirmText = isClosed ? 'Reabrir oferta' : 'Cerrar oferta';
+  const confirmMessage = isClosed
+    ? '¿Seguro que deseas reabrir esta oferta? Los candidatos volverán a poder aplicar'
+    : '¿Seguro que deseas cerrar esta oferta? Los candidatos no podrán aplicar';
+
+  const confirmed = await showConfirmDialog(confirmMessage, {
+    title: actionTitle,
+    confirmText,
     cancelText: 'Cancelar',
   });
 
@@ -489,16 +510,18 @@ async function closeOfferStatus(job = null) {
   
   try {
     UI.showLoading();
-    const updatedOffer = await apiClient.closeJobOffer(targetJob.id);
-    const mergedOffer = updatedOffer || { ...targetJob, status: 'closed' };
+    const updatedOffer = isClosed
+      ? await apiClient.updateJobOffer(targetJob.id, { status: 'open' })
+      : await apiClient.closeJobOffer(targetJob.id);
+    const mergedOffer = updatedOffer || { ...targetJob, status: nextStatus };
 
-    hrJobs = hrJobs.map(item => item.id === targetJob.id ? { ...item, ...mergedOffer, status: 'closed' } : item);
+    hrJobs = hrJobs.map(item => item.id === targetJob.id ? { ...item, ...mergedOffer, status: nextStatus } : item);
     editingOfferId = null;
 
     renderMyOffers();
     renderOfferDetailsPanel(hrJobs.find(item => item.id === targetJob.id) || mergedOffer);
     UI.hideLoading();
-    showToast('Oferta cerrada correctamente', 'success');
+    showToast(isClosed ? 'Oferta reabierta correctamente' : 'Oferta cerrada correctamente', 'success');
   } catch (error) {
     UI.hideLoading();
     console.error('Error closing offer:', error);

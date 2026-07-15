@@ -109,7 +109,7 @@ class APIClient {
 
   async updateJobOffer(offerId, offerData) {
     return this.request(`/job-offers/${offerId}`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify(offerData),
     });
   }
