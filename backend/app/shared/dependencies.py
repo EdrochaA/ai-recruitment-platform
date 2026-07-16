@@ -1,15 +1,83 @@
 from app.application.use_cases.create_job_offer import CreateJobOffer
 from app.application.use_cases.list_job_offers import ListJobOffers
-from app.infrastructure.persistence.in_memory.in_memory_job_offer_repository import (
-    InMemoryJobOfferRepository,
+from app.application.use_cases.update_job_offer import UpdateJobOffer
+from app.application.use_cases.create_application import CreateApplication
+from app.application.use_cases.list_applications_by_job_offer import (
+    ListApplicationsByJobOffer,
 )
-
-job_offer_repository = InMemoryJobOfferRepository()
+from app.application.use_cases.upload_application_cv import UploadApplicationCV
+from app.application.use_cases.process_application_cv import ProcessApplicationCV
+from app.application.use_cases.analyze_application_cv import AnalyzeApplicationCV
+from app.application.use_cases.send_chatbot_message import SendChatbotMessage
+from app.application.use_cases.rank_candidates_for_offer import RankCandidatesForOffer
+from app.shared.dependency_container import get_container
 
 
 def get_create_job_offer_use_case() -> CreateJobOffer:
-    return CreateJobOffer(job_offer_repository)
+    container = get_container()
+    return CreateJobOffer(container.job_offer_repository)
 
 
 def get_list_job_offers_use_case() -> ListJobOffers:
-    return ListJobOffers(job_offer_repository)
+    container = get_container()
+    return ListJobOffers(container.job_offer_repository)
+
+
+def get_update_job_offer_use_case() -> UpdateJobOffer:
+    container = get_container()
+    return UpdateJobOffer(container.job_offer_repository)
+
+
+def get_create_application_use_case() -> CreateApplication:
+    container = get_container()
+    return CreateApplication(container.application_repository)
+
+
+def get_list_applications_use_case() -> ListApplicationsByJobOffer:
+    container = get_container()
+    return ListApplicationsByJobOffer(container.application_repository)
+
+
+def get_upload_application_cv_use_case() -> UploadApplicationCV:
+    container = get_container()
+    return UploadApplicationCV(container.application_repository, container.file_storage)
+
+
+def get_process_application_cv_use_case() -> ProcessApplicationCV:
+    container = get_container()
+    return ProcessApplicationCV(
+        container.application_repository,
+        container.cv_text_extractor,
+        container.file_storage,
+    )
+
+
+def get_analyze_application_cv_use_case() -> AnalyzeApplicationCV:
+    container = get_container()
+    cv_processor = ProcessApplicationCV(
+        container.application_repository,
+        container.cv_text_extractor,
+        container.file_storage,
+    )
+    return AnalyzeApplicationCV(
+        container.application_repository,
+        container.job_offer_repository,
+        container.cv_analyzer,
+        cv_processor,
+    )
+
+
+def get_send_chatbot_message_use_case() -> SendChatbotMessage:
+    container = get_container()
+    return SendChatbotMessage(container.chatbot_service)
+
+
+def get_rank_candidates_use_case() -> RankCandidatesForOffer:
+    container = get_container()
+    return RankCandidatesForOffer(
+        job_offer_repository=container.job_offer_repository,
+        application_repository=container.application_repository,
+        cv_text_extractor=container.cv_text_extractor,
+        file_storage=container.file_storage,
+        candidate_ranker=container.candidate_ranker,
+    )

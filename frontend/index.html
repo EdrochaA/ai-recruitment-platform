@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentoIA · Plataforma de Reclutamiento IA</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-shell no-sidebar" id="app-shell">
+
+        <!-- ══ Sidebar (visible only when authenticated) ══════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar__header">
+                <div class="sidebar__logo">TI</div>
+                <span class="sidebar__brand">TalentoIA</span>
+            </div>
+
+            <nav class="sidebar__nav">
+                <div class="sidebar__section" id="sidebar-section-platform">
+                    <button type="button" class="sidebar__section-toggle" id="sidebar-section-toggle">
+                        <span>Plataforma</span>
+                        <span class="sidebar__chevron">▾</span>
+                    </button>
+                    <ul class="sidebar__items" id="sidebar-items">
+                        <li>
+                            <a href="#" class="sidebar__link" data-page="home" data-nav-role="all">
+                                <span class="sidebar__icon">🏠</span>
+                                <span class="sidebar__label">Inicio / Ofertas</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar__link" data-page="hr-dashboard" data-nav-role="hr" style="display:none;">
+                                <span class="sidebar__icon">👥</span>
+                                <span class="sidebar__label">Panel HR</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar__link" data-page="admin-dashboard" data-nav-role="admin" style="display:none;">
+                                <span class="sidebar__icon">🛡️</span>
+                                <span class="sidebar__label">Panel Admin</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="sidebar__link" data-page="chat" data-nav-role="hr" style="display:none;">
+                                <span class="sidebar__icon">🤖</span>
+                                <span class="sidebar__label">Asistente IA</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <div class="sidebar__footer">
+                <button type="button" class="sidebar__collapse-btn" id="sidebar-collapse-btn" title="Colapsar menú">
+                    <span class="sidebar__icon">/</span>
+                    <span>Colapsar</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Mobile backdrop -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+        <!-- ══ Main column (topbar + content) ═════════════════════════════ -->
+        <div class="app-main">
+
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="topbar__left">
+                    <button class="topbar__menu-btn" id="topbar-menu-btn" title="Menú" aria-label="Abrir menú">☰</button>
+                    <span class="topbar__title" id="topbar-title">Plataforma de Reclutamiento IA</span>
+                </div>
+
+                <div class="topbar__right">
+                    <button id="theme-toggle" class="btn btn--icon" title="Cambiar tema">🌙</button>
+
+                    <!-- Login button (shown when NOT authenticated) -->
+                    <button id="auth-button" class="btn btn--primary">Iniciar sesión</button>
+
+                    <!-- User block (shown when authenticated) -->
+                    <div class="topbar__user" id="user-menu" style="display:none;">
+                        <span class="topbar__user-email" id="user-info"></span>
+                        <span class="topbar__user-role" id="user-role"></span>
+                    </div>
+                    <div class="topbar__avatar" id="user-avatar" style="display:none;">U</div>
+                    <button id="logout-button" class="btn btn--outline" style="display:none;">Cerrar sesión</button>
+
+                    <!-- Hidden legacy elements kept for backward compatibility -->
+                    <a href="#" id="dashboard-link" style="display:none;"></a>
+                    <a href="#" id="nav-dashboard-link" style="display:none;"></a>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <main id="main-content" class="app-content">
+
+                <!-- Loading State -->
+                <div id="loading-state" class="loading-state" style="display:none;">
+                    <div class="spinner"></div>
+                    <p>Cargando...</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="error-state" class="alert alert--error" style="display:none;">
+                    <p id="error-message"></p>
+                    <button class="alert__close" id="error-close">&times;</button>
+                </div>
+
+                <!-- Success State -->
+                <div id="success-state" class="alert alert--success" style="display:none;">
+                    <p id="success-message"></p>
+                    <button class="alert__close" id="success-close">&times;</button>
+                </div>
+
+                <!-- Auth Modal -->
+                <div id="auth-modal" class="modal" style="display:none;">
+                    <div class="modal__overlay" id="modal-overlay"></div>
+                    <div class="modal__content">
+                        <button class="modal__close" id="auth-modal-close">&times;</button>
+
+                        <div class="auth-modal">
+                            <!-- Login Tab -->
+                            <div id="login-tab" class="auth-modal__tab auth-modal__tab--active">
+                                <h2>Iniciar sesión</h2>
+                                <form id="login-form" class="form">
+                                    <div class="form__group">
+                                        <label for="login-email" class="form__label">Correo electrónico</label>
+                                        <input type="email" id="login-email" class="form__input" placeholder="tu@email.com" required>
+                                    </div>
+                                    <div class="form__group">
+                                        <label for="login-password" class="form__label">Contraseña</label>
+                                        <input type="password" id="login-password" class="form__input" placeholder="••••••••" required>
+                                    </div>
+                                    <button type="submit" class="btn btn--primary btn--full">Iniciar sesión</button>
+                                    <p class="form__text-center">
+                                        ¿No tienes cuenta? <button type="button" class="btn btn--link" id="switch-to-signup">Crear cuenta</button>
+                                    </p>
+                                </form>
+                            </div>
+
+                            <!-- Signup Tab -->
+                            <div id="signup-tab" class="auth-modal__tab">
+                                <h2>Crear cuenta</h2>
+                                <form id="signup-form" class="form">
+                                    <div class="form__group">
+                                        <label for="signup-name" class="form__label">Nombre completo</label>
+                                        <input type="text" id="signup-name" class="form__input" placeholder="Tu nombre" required>
+                                    </div>
+                                    <div class="form__group">
+                                        <label for="signup-email" class="form__label">Correo electrónico</label>
+                                        <input type="email" id="signup-email" class="form__input" placeholder="tu@email.com" required>
+                                    </div>
+                                    <div class="form__group">
+                                        <label for="signup-password" class="form__label">Contraseña</label>
+                                        <input type="password" id="signup-password" class="form__input" placeholder="••••••••" required>
+                                    </div>
+                                    <button type="submit" class="btn btn--primary btn--full">Crear cuenta</button>
+                                    <p class="form__text-center">
+                                        ¿Ya tienes cuenta? <button type="button" class="btn btn--link" id="switch-to-login">Iniciar sesión</button>
+                                    </p>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Home Page -->
+                <div id="home-page" class="page page--active">
+                    <section class="hero">
+                        <div class="hero__content">
+                            <h1 class="hero__title">Plataforma de Reclutamiento IA</h1>
+                            <p class="hero__subtitle">Encuentra las mejores oportunidades laborales o candidatos para tu empresa</p>
+                        </div>
+                    </section>
+
+                    <section class="container">
+                        <div class="filter-bar">
+                            <input type="text" id="search-input" class="form__input" placeholder="Buscar por título o ubicación..." />
+                        </div>
+
+                        <div id="job-listings" class="job-grid">
+                            <!-- Jobs will be loaded here -->
+                        </div>
+
+                        <div id="empty-state" class="empty-state" style="display:none;">
+                            <div class="empty-state__icon">📋</div>
+                            <h3 class="empty-state__title">No hay ofertas disponibles</h3>
+                            <p class="empty-state__text">Las ofertas aparecerán aquí cuando estén disponibles</p>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Job Detail Page -->
+                <div id="job-detail-page" class="page">
+                    <div class="container">
+                        <button id="back-button" class="btn btn--ghost">&larr; Volver</button>
+
+                        <div class="job-detail">
+                            <div class="job-detail__header">
+                                <h1 id="job-title" class="job-detail__title"></h1>
+                                <div class="job-detail__meta">
+                                    <span class="badge" id="job-status"></span>
+                                    <span class="badge badge--secondary" id="job-location"></span>
+                                </div>
+                            </div>
+
+                            <div class="job-detail__content">
+                                <h2 class="section-title">Descripción del puesto</h2>
+                                <p id="job-description" class="job-detail__description"></p>
+
+                                <div id="apply-section" class="job-detail__apply">
+                                    <!-- Will be populated based on user auth status -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Apply Page -->
+                <div id="apply-page" class="page">
+                    <div class="container container--narrow">
+                        <button id="back-from-apply" class="btn btn--ghost">&larr; Volver</button>
+
+                        <div class="form-card">
+                            <h1>Postularse a: <span id="apply-job-title"></span></h1>
+
+                            <form id="apply-form" class="form">
+                                <div class="form__group">
+                                    <label for="apply-name" class="form__label">Nombre completo</label>
+                                    <input type="text" id="apply-name" class="form__input" placeholder="Tu nombre" required>
+                                </div>
+
+                                <div class="form__group">
+                                    <label for="apply-email" class="form__label">Correo electrónico</label>
+                                    <input type="email" id="apply-email" class="form__input" placeholder="tu@email.com" required>
+                                </div>
+
+                                <div class="form__group">
+                                    <label for="apply-cv" class="form__label">Adjuntar CV (PDF)</label>
+                                    <div class="file-input">
+                                        <input type="file" id="apply-cv" class="file-input__input" accept=".pdf" required>
+                                        <span class="file-input__label">Haz clic para seleccionar archivo o arrastra aquí</span>
+                                        <span id="apply-cv-name" class="file-input__name"></span>
+                                    </div>
+                                    <small class="form__hint">Máximo 5 MB, formato PDF</small>
+                                </div>
+
+                                <button type="submit" class="btn btn--primary btn--full">Enviar candidatura</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HR Dashboard -->
+                <div id="hr-dashboard-page" class="page">
+                    <div class="container">
+                        <h1>Dashboard de Recursos Humanos</h1>
+
+                        <div class="tabs">
+                            <button class="tab-button tab-button--active" data-tab="create-offer">Crear Oferta</button>
+                            <button class="tab-button" data-tab="my-offers">Mis Ofertas</button>
+                            <button class="tab-button" data-tab="applications">Candidaturas</button>
+                        </div>
+
+                        <!-- Create Offer Tab -->
+                        <div id="create-offer-tab" class="tab-content tab-content--active">
+                            <div class="form-card">
+                                <h2>Nueva Oferta de Trabajo</h2>
+                                <form id="create-offer-form" class="form">
+                                    <div class="form__group">
+                                        <label for="offer-title" class="form__label">Título del puesto</label>
+                                        <input type="text" id="offer-title" class="form__input" placeholder="ej: Ingeniero de Software Senior" required>
+                                    </div>
+
+                                    <div class="form__group">
+                                        <label for="offer-company" class="form__label">Empresa</label>
+                                        <input type="text" id="offer-company" class="form__input" placeholder="Nombre de la empresa" required>
+                                    </div>
+
+                                    <div class="form__group">
+                                        <label for="offer-location" class="form__label">Ubicación</label>
+                                        <input type="text" id="offer-location" class="form__input" placeholder="ej: Madrid, España" required>
+                                    </div>
+
+                                    <div class="form__group">
+                                        <label for="offer-description" class="form__label">Descripción del puesto</label>
+                                        <textarea id="offer-description" class="form__textarea" placeholder="Describe los requisitos, responsabilidades, etc." required></textarea>
+                                    </div>
+
+                                    <div class="form__group">
+                                        <label for="offer-employment-type" class="form__label">Tipo de empleo</label>
+                                        <select id="offer-employment-type" class="form__input">
+                                            <option value="full-time">Tiempo completo</option>
+                                            <option value="part-time">Tiempo parcial</option>
+                                            <option value="contract">Contrato</option>
+                                            <option value="freelance">Freelance</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                        <div class="form__group">
+                                            <label for="offer-salary-min" class="form__label">Salario mínimo (EUR)</label>
+                                            <input type="number" id="offer-salary-min" class="form__input" placeholder="0" min="0">
+                                        </div>
+                                        <div class="form__group">
+                                            <label for="offer-salary-max" class="form__label">Salario máximo (EUR)</label>
+                                            <input type="number" id="offer-salary-max" class="form__input" placeholder="0" min="0">
+                                        </div>
+                                    </div>
+
+                                    <div class="form__group">
+                                        <label for="offer-required-skills" class="form__label">Habilidades requeridas (separadas por comas)</label>
+                                        <input type="text" id="offer-required-skills" class="form__input" placeholder="Python, FastAPI, PostgreSQL">
+                                    </div>
+
+                                    <div class="form__group">
+                                        <label for="offer-nice-skills" class="form__label">Habilidades deseables (separadas por comas)</label>
+                                        <input type="text" id="offer-nice-skills" class="form__input" placeholder="Docker, Kubernetes, AWS">
+                                    </div>
+
+                                    <button type="submit" class="btn btn--primary">Publicar Oferta</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- My Offers Tab -->
+                        <div id="my-offers-tab" class="tab-content">
+                            <div style="margin-bottom: 16px; width: 100%;">
+                                <input
+                                    type="text"
+                                    id="my-offers-search"
+                                    class="form__input"
+                                    style="width: 100%;"
+                                    placeholder="Buscar mis ofertas por título, empresa o ubicación..."
+                                />
+                            </div>
+                            <div id="my-offers-list" class="job-grid">
+                                <!-- Offers will be loaded here -->
+                            </div>
+                            <div id="my-offers-empty" class="empty-state" style="display:none;">
+                                <p>No has publicado ofertas aún</p>
+                            </div>
+                        </div>
+
+                        <!-- Offer Details Panel -->
+                        <div id="offer-details-panel" class="modal" style="display:none;">
+                            <div class="modal__overlay"></div>
+                            <div class="modal__content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+                                <button class="modal__close" id="details-panel-close">&times;</button>
+                                <div id="offer-details-content"></div>
+                            </div>
+                        </div>
+
+                        <!-- Applications Tab -->
+                        <div id="applications-tab" class="tab-content">
+                            <div id="applications-list">
+                                <!-- Applications will be loaded here -->
+                            </div>
+                            <div id="applications-empty" class="empty-state" style="display:none;">
+                                <p>No hay candidaturas aún</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Dashboard -->
+                <div id="admin-dashboard-page" class="page">
+                    <div class="container">
+                        <h1>Panel de Administrador</h1>
+
+                        <div class="form-card">
+                            <h2>Crear Usuario de Recursos Humanos</h2>
+                            <form id="create-hr-form" class="form">
+                                <div class="form__group">
+                                    <label for="hr-name" class="form__label">Nombre completo</label>
+                                    <input type="text" id="hr-name" class="form__input" placeholder="Nombre" required>
+                                </div>
+
+                                <div class="form__group">
+                                    <label for="hr-email" class="form__label">Correo electrónico</label>
+                                    <input type="email" id="hr-email" class="form__input" placeholder="email@empresa.com" required>
+                                </div>
+
+                                <div class="form__group">
+                                    <label for="hr-password" class="form__label">Contraseña temporal</label>
+                                    <input type="password" id="hr-password" class="form__input" placeholder="••••••••" required>
+                                </div>
+
+                                <button type="submit" class="btn btn--primary">Crear usuario HR</button>
+                            </form>
+                        </div>
+
+                        <div class="hr-list">
+                            <h2>Usuarios de Recursos Humanos</h2>
+                            <div id="hr-users-list" class="table-container">
+                                <!-- Users will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Page (Asistente IA) -->
+                <div id="chat-page" class="page chat-page">
+                    <div class="container">
+                        <div class="chat-shell">
+                            <div class="chat-header">
+                                <div class="chat-header__avatar">🤖</div>
+                                <div>
+                                    <div class="chat-header__title">Asistente IA de Reclutamiento</div>
+                                    <div class="chat-header__subtitle">Consulta ofertas, candidaturas y rankings de candidatos</div>
+                                </div>
+                            </div>
+
+                            <div class="chat-messages" id="chatbot-messages"></div>
+
+                            <div class="chat-composer">
+                                <textarea
+                                    id="chatbot-input"
+                                    class="chat-composer__textarea"
+                                    rows="1"
+                                    maxlength="1000"
+                                    placeholder="Escribe tu pregunta…  (Enter para enviar · Shift+Enter para salto de línea)"
+                                    autocomplete="off"
+                                ></textarea>
+                                <button id="chatbot-send" class="chat-composer__send" title="Enviar" aria-label="Enviar" disabled>➤</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+
+            <!-- Footer -->
+            <footer class="footer">
+                <p>&copy; 2026 TalentoIA · Plataforma de Reclutamiento IA. Todos los derechos reservados.</p>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/vendor/marked.min.js"></script>
+    <script src="js/theme-toggle.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/backend-auth.js"></script>
+    <script src="js/api-client.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/pages/home.js"></script>
+    <script src="js/pages/job-detail.js"></script>
+    <script src="js/pages/apply.js"></script>
+    <script src="js/pages/hr-dashboard.js"></script>
+    <script src="js/pages/admin-dashboard.js"></script>
+    <script src="js/pages/chat.js"></script>
+    <script src="js/chatbot.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
