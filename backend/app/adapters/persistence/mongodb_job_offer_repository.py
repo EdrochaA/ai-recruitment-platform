@@ -3,11 +3,15 @@ MongoDB JobOffer Repository Adapter
 Implementation of JobOfferRepositoryPort using MongoDB
 """
 
+import logging
 from typing import List, Optional
 from datetime import datetime
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 from bson.objectid import ObjectId
+from bson.errors import InvalidId
+
+logger = logging.getLogger(__name__)
 
 from app.domain.entities.job_offer import JobOffer, JobOfferStatus
 from app.domain.ports.job_offer_repository_port import JobOfferRepositoryPort
@@ -55,7 +59,10 @@ class MongoDBJobOfferRepository(JobOfferRepositoryPort):
             if not offer_doc:
                 return None
             return self._doc_to_job_offer(offer_doc)
+        except InvalidId:
+            return None
         except Exception:
+            logger.exception("Unexpected error fetching job offer id=%s", offer_id)
             return None
     
     async def list_open_offers(self) -> List[JobOffer]:
@@ -99,7 +106,10 @@ class MongoDBJobOfferRepository(JobOfferRepositoryPort):
             
             updated_doc = self.offers_collection.find_one({"_id": ObjectId(offer_id)})
             return self._doc_to_job_offer(updated_doc)
+        except InvalidId:
+            return None
         except Exception:
+            logger.exception("Unexpected error updating job offer id=%s", offer_id)
             return None
     
     async def delete_job_offer(self, offer_id: str) -> bool:
@@ -107,7 +117,10 @@ class MongoDBJobOfferRepository(JobOfferRepositoryPort):
         try:
             result = self.offers_collection.delete_one({"_id": ObjectId(offer_id)})
             return result.deleted_count > 0
+        except InvalidId:
+            return False
         except Exception:
+            logger.exception("Unexpected error deleting job offer id=%s", offer_id)
             return False
     
     def _doc_to_job_offer(self, doc: dict) -> JobOffer:
@@ -144,21 +157,44 @@ class MongoDBJobOfferRepository(JobOfferRepositoryPort):
 
         title_escaped = _re.escape(title.strip())
 
-        # Exact match first
-        doc = self.offers_collection.find_one(
-            {"title": {"$regex": f"^{title_escaped}$", "$options": "i"}}
-        )
-        if doc:
-            return self._doc_to_job_offer(doc)
+        try:
+            # Exact match first
+            doc = self.offers_collection.find_one(
+                {"title": {"$regex": f"^{title_escaped}$", "$options": "i"}}
+            )
+            if doc:
+                return self._doc_to_job_offer(doc)
 
-        # Partial match (title searched for is contained in offer title)
-        doc = self.offers_collection.find_one(
-            {"title": {"$regex": title_escaped, "$options": "i"}}
-        )
-        if doc:
-            return self._doc_to_job_offer(doc)
+            # Partial match (title searched for is contained in offer title)
+            doc = self.offers_collection.find_one(
+                {"title": {"$regex": title_escaped, "$options": "i"}}
+            )
+            if doc:
+                return self._doc_to_job_offer(doc)
 
-        return None
+            return None
+        except Exception:
+            logger.exception("Unexpected error in find_by_title(title=%r)", title)
+            raise
+
+    def find_by_id(self, offer_id: str) -> Optional["JobOffer"]:
+        """Find a job offer by its ObjectId (synchronous).
+
+        Returns None for an invalid/unknown ObjectId (treat as 404).
+        Re-raises any infrastructure error (connection, timeout, etc.) so
+        callers can surface it as a 500 rather than a silent empty result.
+        """
+        try:
+            doc = self.offers_collection.find_one({"_id": ObjectId(offer_id)})
+            if not doc:
+                return None
+            return self._doc_to_job_offer(doc)
+        except InvalidId:
+            logger.warning("find_by_id called with invalid ObjectId %r", offer_id)
+            return None
+        except Exception:
+            logger.exception("Unexpected error in find_by_id(offer_id=%r)", offer_id)
+            raise
 
     def close(self):
         """Close MongoDB connection"""

@@ -79,23 +79,48 @@ def get_job_offer_by_title(
     title: str = Query(..., description="Partial or full job offer title"),
 ):
     """Find a job offer by title (partial, case-insensitive)."""
+    logger.info("get_job_offer_by_title called with title=%r", title)
     container = get_container()
 
     offer = None
-    if hasattr(container.job_offer_repository, "find_by_title"):
-        offer = container.job_offer_repository.find_by_title(title)
-    else:
-        all_offers = container.job_offer_repository.list_all()
-        title_lower = title.lower()
-        for o in all_offers:
-            if o.title.lower() == title_lower:
-                offer = o
-                break
-        if not offer:
+    try:
+        if hasattr(container.job_offer_repository, "find_by_title"):
+            offer = container.job_offer_repository.find_by_title(title)
+            if offer:
+                logger.info(
+                    "find_by_title(%r) → found id=%r, title=%r", title, offer.id, offer.title
+                )
+            else:
+                logger.warning("find_by_title(%r) → not found", title)
+        else:
+            all_offers = container.job_offer_repository.list_all()
+            title_lower = title.lower()
             for o in all_offers:
-                if title_lower in o.title.lower():
+                if o.title.lower() == title_lower:
                     offer = o
                     break
+            if not offer:
+                for o in all_offers:
+                    if title_lower in o.title.lower():
+                        offer = o
+                        break
+            if offer:
+                logger.info(
+                    "get_job_offer_by_title fallback scan → found id=%r, title=%r",
+                    offer.id, offer.title,
+                )
+            else:
+                logger.warning(
+                    "get_job_offer_by_title fallback scan → no match for %r", title
+                )
+    except Exception as exc:
+        logger.exception(
+            "Infrastructure error in get_job_offer_by_title(title=%r): %s", title, exc
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error while searching job offer by title",
+        )
 
     if not offer:
         return None
@@ -125,40 +150,105 @@ def list_candidates_for_offer(
             detail="Provide job_offer_id or job_offer_title",
         )
 
+    logger.info(
+        "list_candidates_for_offer called — job_offer_id=%r, job_offer_title=%r",
+        job_offer_id,
+        job_offer_title,
+    )
+
     container = get_container()
 
     # Resolve offer
     offer = None
-    if job_offer_id:
-        if hasattr(container.job_offer_repository, "find_by_id"):
+    try:
+        if job_offer_id:
+            # find_by_id is the direct sync lookup; returns None for unknown/invalid id
             offer = container.job_offer_repository.find_by_id(job_offer_id)
-        elif hasattr(container.job_offer_repository, "get_by_id"):
-            offer = container.job_offer_repository.get_by_id(job_offer_id)
+            if offer:
+                logger.info(
+                    "Offer resolved by find_by_id: id=%r, title=%r", offer.id, offer.title
+                )
+            else:
+                logger.warning("find_by_id(%r) returned no offer", job_offer_id)
         else:
-            all_offers = container.job_offer_repository.list_all()
-            for o in all_offers:
-                if o.id == job_offer_id:
-                    offer = o
-                    break
-    else:
-        if hasattr(container.job_offer_repository, "find_by_title"):
-            offer = container.job_offer_repository.find_by_title(job_offer_title)
-        else:
-            all_offers = container.job_offer_repository.list_all()
-            title_lower = job_offer_title.lower()
-            for o in all_offers:
-                if title_lower in o.title.lower() or o.title.lower() in title_lower:
-                    offer = o
-                    break
-
-    if not offer:
+            if hasattr(container.job_offer_repository, "find_by_title"):
+                offer = container.job_offer_repository.find_by_title(job_offer_title)
+                if offer:
+                    logger.info(
+                        "Offer resolved by find_by_title: id=%r, title=%r",
+                        offer.id, offer.title,
+                    )
+                else:
+                    logger.warning("find_by_title(%r) returned no offer", job_offer_title)
+            else:
+                all_offers = container.job_offer_repository.list_all()
+                title_lower = job_offer_title.lower()
+                for o in all_offers:
+                    if title_lower in o.title.lower() or o.title.lower() in title_lower:
+                        offer = o
+                        break
+                if offer:
+                    logger.info(
+                        "Offer resolved by fallback scan: id=%r, title=%r",
+                        offer.id, offer.title,
+                    )
+                else:
+                    logger.warning(
+                        "Fallback scan found no offer matching title=%r", job_offer_title
+                    )
+    except Exception as exc:
+        logger.exception(
+            "Infrastructure error while resolving offer "
+            "(job_offer_id=%r, job_offer_title=%r): %s",
+            job_offer_id, job_offer_title, exc,
+        )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No job offer found matching title: '{job_offer_title}'",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error while looking up job offer",
         )
 
-    applications = container.application_repository.find_by_job_offer(offer.id)
+    if not offer:
+        detail_msg = (
+            f"No job offer found with id='{job_offer_id}'"
+            if job_offer_id
+            else f"No job offer found matching title: '{job_offer_title}'"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=detail_msg,
+        )
+
+    # Fetch applications
+    try:
+        applications = container.application_repository.find_by_job_offer(offer.id)
+    except Exception as exc:
+        logger.exception(
+            "Infrastructure error fetching applications for offer id=%r: %s", offer.id, exc
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error while fetching candidates",
+        )
+
     apps_with_cv = [a for a in applications if a.cv_storage_key]
+    logger.info(
+        "Offer id=%r: total_applications=%d, with_cv_storage_key=%d, without=%d",
+        offer.id,
+        len(applications),
+        len(apps_with_cv),
+        len(applications) - len(apps_with_cv),
+    )
+
+    if not applications:
+        logger.info(
+            "Offer id=%r title=%r: offer exists but has zero applications",
+            offer.id, offer.title,
+        )
+    elif not apps_with_cv:
+        logger.info(
+            "Offer id=%r title=%r: %d application(s) found but none have a cv_storage_key",
+            offer.id, offer.title, len(applications),
+        )
 
     # Auto-extract CV text for any unprocessed application
     for app in apps_with_cv:
