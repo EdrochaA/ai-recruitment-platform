@@ -225,14 +225,31 @@ class AgentCoreCandidateRanker(CandidateRankerPort):
         return ranked, summary
 
     def _try_parse_json(self, text: str) -> Any:
+        candidate = text.strip()
+
+        if candidate.startswith("```") and candidate.endswith("```"):
+            opening_line_end = candidate.find("\n")
+            if opening_line_end != -1:
+                fence_language = candidate[3:opening_line_end].strip().lower()
+                if fence_language in {"", "json"}:
+                    candidate = candidate[opening_line_end + 1:-3].strip()
+
         try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
-        start, end = text.find("{"), text.rfind("}")
+            return json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            logger.warning(
+                "Could not parse complete LLM response as JSON: %s",
+                exc,
+            )
+
+        start, end = candidate.find("{"), candidate.rfind("}")
         if start != -1 and end > start:
             try:
-                return json.loads(text[start:end + 1])
-            except json.JSONDecodeError:
-                pass
+                return json.loads(candidate[start:end + 1])
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "Could not parse extracted LLM JSON object: %s",
+                    exc,
+                )
+
         return None

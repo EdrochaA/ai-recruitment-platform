@@ -73,6 +73,29 @@ class AgentCoreCandidateRankerTests(unittest.TestCase):
         self.assertEqual(ranked[0].rank, 1)
         self.assertEqual(summary, "Ranking completado.")
 
+    def test_try_parse_json_accepts_markdown_fences(self):
+        expected = {"ranking": [], "summary": "Sin candidatos."}
+
+        self.assertEqual(
+            self.ranker._try_parse_json(f"```json\n{json.dumps(expected)}\n```"),
+            expected,
+        )
+        self.assertEqual(
+            self.ranker._try_parse_json(f"```\n{json.dumps(expected)}\n```"),
+            expected,
+        )
+
+    def test_try_parse_json_logs_exact_decode_errors(self):
+        with self.assertLogs(
+            "agentcore-candidate-ranker",
+            level="WARNING",
+        ) as captured_logs:
+            parsed = self.ranker._try_parse_json("```json\n{invalid}\n```")
+
+        self.assertIsNone(parsed)
+        self.assertIn("Could not parse complete LLM response as JSON", captured_logs.output[0])
+        self.assertIn("Could not parse extracted LLM JSON object", captured_logs.output[1])
+
 
 if __name__ == "__main__":
     unittest.main()
