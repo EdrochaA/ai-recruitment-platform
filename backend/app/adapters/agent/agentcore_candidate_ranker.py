@@ -238,12 +238,31 @@ class AgentCoreCandidateRanker(CandidateRankerPort):
                     candidate = candidate[opening_line_end + 1:-3].strip()
 
         try:
-            return json.loads(candidate)
+            parsed = json.loads(candidate)
         except json.JSONDecodeError as exc:
             logger.warning(
                 "Could not parse complete LLM response as JSON: %s",
                 exc,
             )
+        else:
+            if not isinstance(parsed, str):
+                return parsed
+
+            candidate = parsed.strip()
+            if candidate.startswith("```") and candidate.endswith("```"):
+                opening_line_end = candidate.find("\n")
+                if opening_line_end != -1:
+                    fence_language = candidate[3:opening_line_end].strip().lower()
+                    if fence_language in {"", "json"}:
+                        candidate = candidate[opening_line_end + 1:-3].strip()
+
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "Could not parse nested LLM response as JSON: %s",
+                    exc,
+                )
 
         start, end = candidate.find("{"), candidate.rfind("}")
         if start != -1 and end > start:

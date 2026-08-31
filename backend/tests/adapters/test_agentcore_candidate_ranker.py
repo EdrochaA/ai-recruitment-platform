@@ -85,6 +85,12 @@ class AgentCoreCandidateRankerTests(unittest.TestCase):
             expected,
         )
 
+    def test_try_parse_json_accepts_agentcore_encoded_markdown_fence(self):
+        expected = {"ranking": [], "summary": "Sin candidatos."}
+        response = json.dumps(f"```json\n{json.dumps(expected)}\n```")
+
+        self.assertEqual(self.ranker._try_parse_json(response), expected)
+
     def test_try_parse_json_logs_exact_decode_errors(self):
         with self.assertLogs(
             "agentcore-candidate-ranker",
