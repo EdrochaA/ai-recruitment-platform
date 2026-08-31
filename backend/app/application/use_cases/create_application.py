@@ -14,11 +14,21 @@ class CreateApplication:
         candidate_name: str,
         candidate_email: str,
     ) -> JobApplication:
+        normalized_email = candidate_email.strip().lower()
+
+        if self.repository.exists_by_job_offer_and_email(
+            job_offer_id=job_offer_id,
+            candidate_email=normalized_email,
+        ):
+            raise ValueError(
+                "Ya has presentado una candidatura para esta oferta."
+            )
+
         job_application = JobApplication(
             id=str(uuid4()),
             job_offer_id=job_offer_id,
-            candidate_name=candidate_name,
-            candidate_email=candidate_email,
+            candidate_name=candidate_name.strip(),
+            candidate_email=normalized_email,
             created_at=datetime.utcnow(),
         )
         return self.repository.save(job_application)

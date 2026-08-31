@@ -91,11 +91,18 @@ class AgentCoreCandidateRanker(CandidateRankerPort):
     def _build_prompt(self, title: str, top_n: int) -> str:
         """Build a short delegation prompt so the agent uses its own tools."""
         return (
-            f"Usa tus tools para obtener los detalles de la oferta '{title}' y la lista "
-            f"de sus candidatos con sus CVs. A continuación rankea los {top_n} candidatos "
-            f"más idóneos evaluando el ajuste de cada CV con los requisitos de la oferta.\n\n"
+            f"Usa tus tools para obtener los detalles de la oferta '{title}' y todas sus "
+            f"candidaturas. Considera evaluable únicamente una candidatura cuyo campo "
+            f"cv_text contenga texto no vacío. No puntúes ni incluyas en el ranking a "
+            f"candidatos sin CV subido o cuyo CV no tenga texto extraíble.\n\n"
+            f"Cuenta primero el total de candidaturas y cuántas son evaluables. Después "
+            f"rankea únicamente las evaluables según el ajuste de su CV con los requisitos "
+            f"de la oferta. Devuelve hasta min({top_n}, evaluable_candidates) resultados. "
+            f"Si existen al menos {top_n} candidatos evaluables, devuelve exactamente "
+            f"{top_n}. Los candidatos no evaluables no deben consumir plazas del top.\n\n"
             f"Devuelve ÚNICAMENTE el siguiente JSON, sin texto adicional antes ni después:\n"
-            f'{{"ranking": [{{"application_id": "...", "candidate_name": "...", '
+            f'{{"total_candidates": 0, "evaluable_candidates": 0, '
+            f'"ranking": [{{"application_id": "...", "candidate_name": "...", '
             f'"score": 85, "reason": "Motivo detallado"}}], '
             f'"summary": "Resumen breve del proceso de selección"}}'
         )
@@ -169,26 +176,48 @@ class AgentCoreCandidateRanker(CandidateRankerPort):
             )
             raise ValueError("LLM response did not contain expected 'ranking' key")
 
-        # Build lookup by application_id for fast access
+        # CandidateInput is the backend-authoritative set with usable CV text.
         cand_map = {c.application_id: c for c in candidates}
 
+        ranking_items = data["ranking"]
+        if not isinstance(ranking_items, list):
+            raise ValueError("LLM response 'ranking' value was not a list")
+
         ranked: list[RankedCandidate] = []
-        for i, item in enumerate(data["ranking"][:top_n], start=1):
+        seen_application_ids: set[str] = set()
+        for item in ranking_items:
+            if len(ranked) >= top_n:
+                break
+            if not isinstance(item, dict):
+                logger.warning("Ignoring non-object LLM ranking item: %r", item)
+                continue
+
             app_id = str(item.get("application_id", ""))
             cand = cand_map.get(app_id)
+            if not cand:
+                logger.warning(
+                    "Ignoring non-evaluable or unknown candidate returned by LLM: %r",
+                    app_id,
+                )
+                continue
+            if app_id in seen_application_ids:
+                logger.warning("Ignoring duplicate candidate returned by LLM: %r", app_id)
+                continue
+
+            seen_application_ids.add(app_id)
             ranked.append(
                 RankedCandidate(
-                    rank=i,
+                    rank=len(ranked) + 1,
                     application_id=app_id,
-                    candidate_name=item.get("candidate_name") or (cand.candidate_name if cand else "Desconocido"),
-                    candidate_email=cand.candidate_email if cand else "",
+                    candidate_name=cand.candidate_name,
+                    candidate_email=cand.candidate_email,
                     score=int(item.get("score", 0)),
                     ranking_reason=str(item.get("reason", "")),
-                    cv_summary=cand.cv_analysis_summary if cand else None,
-                    skills=cand.cv_analysis_technical_skills if cand else [],
-                    experience=cand.cv_analysis_experience if cand else None,
+                    cv_summary=cand.cv_analysis_summary,
+                    skills=cand.cv_analysis_technical_skills,
+                    experience=cand.cv_analysis_experience,
                     cv_processing_status="processed",
-                    cv_analysis_status=cand.cv_analysis_status if cand else "pending",
+                    cv_analysis_status=cand.cv_analysis_status,
                 )
             )
 

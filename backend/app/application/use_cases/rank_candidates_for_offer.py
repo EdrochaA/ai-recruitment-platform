@@ -57,22 +57,34 @@ class RankCandidatesForOffer:
                 "job_offer_title": job_offer_title,
                 "job_offer_description": None,
                 "total_candidates": 0,
+                "evaluable_candidates": 0,
+                "candidates_without_cv": 0,
+                "candidates_without_cv_text": 0,
                 "ranked_candidates": [],
             }
 
         applications = self.application_repository.find_by_job_offer(job_offer.id)
         apps_with_cv = [a for a in applications if a.cv_storage_key]
+        candidates_without_cv = len(applications) - len(apps_with_cv)
 
         if not apps_with_cv:
             return {
                 "found": True,
-                "message": (
-                    f"La oferta '{job_offer.title}' existe pero todavía "
-                    "no tiene candidatos con CV subido."
+                "message": self._build_user_message(
+                    job_offer_title=job_offer.title,
+                    total_candidates=len(applications),
+                    evaluable_candidates=0,
+                    candidates_without_cv=candidates_without_cv,
+                    candidates_without_cv_text=0,
+                    requested_top_n=top_n,
+                    ranked_count=0,
                 ),
                 "job_offer_title": job_offer.title,
                 "job_offer_description": job_offer.description,
-                "total_candidates": 0,
+                "total_candidates": len(applications),
+                "evaluable_candidates": 0,
+                "candidates_without_cv": candidates_without_cv,
+                "candidates_without_cv_text": 0,
                 "ranked_candidates": [],
             }
 
@@ -111,17 +123,26 @@ class RankCandidatesForOffer:
             for app in apps_with_cv
             if app.cv_text  # only send candidates with text to the ranker
         ]
+        candidates_without_cv_text = len(apps_with_cv) - len(candidate_inputs)
 
         if not candidate_inputs:
             return {
                 "found": True,
-                "message": (
-                    f"Hay {len(apps_with_cv)} candidatos en '{job_offer.title}' "
-                    "pero ninguno tiene texto de CV extraído todavía."
+                "message": self._build_user_message(
+                    job_offer_title=job_offer.title,
+                    total_candidates=len(applications),
+                    evaluable_candidates=0,
+                    candidates_without_cv=candidates_without_cv,
+                    candidates_without_cv_text=candidates_without_cv_text,
+                    requested_top_n=top_n,
+                    ranked_count=0,
                 ),
                 "job_offer_title": job_offer.title,
                 "job_offer_description": job_offer.description,
-                "total_candidates": len(apps_with_cv),
+                "total_candidates": len(applications),
+                "evaluable_candidates": 0,
+                "candidates_without_cv": candidates_without_cv,
+                "candidates_without_cv_text": candidates_without_cv_text,
                 "ranked_candidates": [],
             }
 
@@ -153,14 +174,101 @@ class RankCandidatesForOffer:
 
         return {
             "found": True,
-            "message": summary,
+            "message": self._build_user_message(
+                job_offer_title=job_offer.title,
+                total_candidates=len(applications),
+                evaluable_candidates=len(candidate_inputs),
+                candidates_without_cv=candidates_without_cv,
+                candidates_without_cv_text=candidates_without_cv_text,
+                requested_top_n=top_n,
+                ranked_count=len(ranked),
+                ranker_summary=summary,
+            ),
             "job_offer_title": job_offer.title,
             "job_offer_description": job_offer.description,
-            "total_candidates": len(apps_with_cv),
+            "total_candidates": len(applications),
+            "evaluable_candidates": len(candidate_inputs),
+            "candidates_without_cv": candidates_without_cv,
+            "candidates_without_cv_text": candidates_without_cv_text,
             "ranked_candidates": ranked,
         }
 
     # ── Internal helpers ────────────────────────────────────────────────────
+
+    def _build_user_message(
+        self,
+        job_offer_title: str,
+        total_candidates: int,
+        evaluable_candidates: int,
+        candidates_without_cv: int,
+        candidates_without_cv_text: int,
+        requested_top_n: int,
+        ranked_count: int,
+        ranker_summary: str | None = None,
+    ) -> str:
+        if total_candidates == 0:
+            return (
+                f"La oferta '{job_offer_title}' existe pero todavía no tiene "
+                "candidaturas. No se ha generado ningún ranking."
+            )
+
+        total_label = "candidatura" if total_candidates == 1 else "candidaturas"
+        message = (
+            f"Se encontraron **{total_candidates} {total_label}** para "
+            f"'{job_offer_title}'."
+        )
+
+        if evaluable_candidates == 0:
+            message += " Ninguna pudo evaluarse: "
+        else:
+            evaluation_verb = "pudo evaluarse" if evaluable_candidates == 1 else "pudieron evaluarse"
+            message += f" De ellas, **{evaluable_candidates} {evaluation_verb}**"
+
+        exclusions: list[str] = []
+        if candidates_without_cv:
+            no_cv_verb = "no se evaluó" if candidates_without_cv == 1 else "no se evaluaron"
+            exclusions.append(
+                f"**{candidates_without_cv} {no_cv_verb} porque "
+                f"{'no tiene' if candidates_without_cv == 1 else 'no tienen'} CV subido**"
+            )
+        if candidates_without_cv_text:
+            no_text_verb = "no pudo evaluarse" if candidates_without_cv_text == 1 else "no pudieron evaluarse"
+            exclusions.append(
+                f"**{candidates_without_cv_text} {no_text_verb} porque "
+                f"{'su CV no contiene' if candidates_without_cv_text == 1 else 'sus CV no contienen'} "
+                "texto extraíble**"
+            )
+
+        if exclusions:
+            if len(exclusions) == 1:
+                exclusions_text = exclusions[0]
+            else:
+                exclusions_text = " y ".join(exclusions)
+            if evaluable_candidates == 0:
+                message += exclusions_text + "."
+            else:
+                message += "; " + exclusions_text + "."
+        elif evaluable_candidates > 0:
+            message += "."
+
+        if evaluable_candidates == 0:
+            return message + " No se ha generado ningún ranking."
+
+        expected_count = min(requested_top_n, evaluable_candidates)
+        if ranked_count == expected_count:
+            message += (
+                f" Se muestra el top {ranked_count} entre las candidaturas "
+                "evaluables."
+            )
+        else:
+            message += (
+                f" Se obtuvieron {ranked_count} resultados válidos de los "
+                f"{expected_count} solicitados."
+            )
+
+        if ranker_summary:
+            message += f"\n\n{ranker_summary}"
+        return message
 
     def _find_offer_by_title(self, title: str) -> Any | None:
         title_lower = title.lower().strip()

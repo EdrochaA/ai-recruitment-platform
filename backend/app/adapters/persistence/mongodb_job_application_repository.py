@@ -1,5 +1,6 @@
 """MongoDB implementation of JobApplicationRepository"""
 
+import re
 from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
@@ -22,6 +23,7 @@ class MongoDBJobApplicationRepository(JobApplicationRepository):
     def _ensure_indexes(self):
         """Create necessary indexes"""
         self.collection.create_index("job_offer_id")
+        self.collection.create_index([("job_offer_id", 1), ("candidate_email", 1)])
         self.collection.create_index("created_at")
 
     def save(self, job_application: JobApplication) -> JobApplication:
@@ -38,6 +40,26 @@ class MongoDBJobApplicationRepository(JobApplicationRepository):
         """Find all applications for a job offer"""
         docs = list(self.collection.find({"job_offer_id": job_offer_id}))
         return [self._doc_to_job_application(doc) for doc in docs]
+
+    def exists_by_job_offer_and_email(
+        self,
+        job_offer_id: str,
+        candidate_email: str,
+    ) -> bool:
+        """Check whether an email has already applied to a job offer."""
+        normalized_email = candidate_email.strip().lower()
+        email_pattern = f"^{re.escape(normalized_email)}$"
+
+        return self.collection.find_one(
+            {
+                "job_offer_id": job_offer_id,
+                "candidate_email": {
+                    "$regex": email_pattern,
+                    "$options": "i",
+                },
+            },
+            {"_id": 1},
+        ) is not None
 
     def find_by_id(self, job_application_id: str) -> Optional[JobApplication]:
         """Find application by ID"""

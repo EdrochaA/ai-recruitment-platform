@@ -43,12 +43,18 @@ def create_application(
     request: CreateApplicationRequest,
     use_case: CreateApplication = Depends(get_create_application_use_case),
 ):
-    application = use_case.execute(
-        job_offer_id=request.job_offer_id,
-        candidate_name=request.candidate_name,
-        candidate_email=request.candidate_email,
-    )
-    return ApplicationResponse(**application.__dict__)
+    try:
+        application = use_case.execute(
+            job_offer_id=request.job_offer_id,
+            candidate_name=request.candidate_name,
+            candidate_email=request.candidate_email,
+        )
+        return ApplicationResponse(**application.__dict__)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(

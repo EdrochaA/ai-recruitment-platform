@@ -13,6 +13,14 @@ class JobApplicationRepository(ABC):
         pass
 
     @abstractmethod
+    def exists_by_job_offer_and_email(
+        self,
+        job_offer_id: str,
+        candidate_email: str,
+    ) -> bool:
+        pass
+
+    @abstractmethod
     def find_by_id(self, job_application_id: str) -> Optional[JobApplication]:
         pass
 

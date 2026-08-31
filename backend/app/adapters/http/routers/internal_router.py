@@ -280,7 +280,11 @@ def list_candidates_for_offer(
             candidate_name=app.candidate_name,
             candidate_email=app.candidate_email,
             cv_text=app.cv_text,
-            cv_processing_status=app.cv_processing_status,
+            cv_processing_status=(
+                app.cv_processing_status
+                if app.cv_storage_key
+                else "no_cv_uploaded"
+            ),
             cv_analysis_status=app.cv_analysis_status or "pending",
             cv_analysis_summary=app.cv_analysis_summary,
             cv_analysis_technical_skills=app.cv_analysis_technical_skills or [],
@@ -289,7 +293,7 @@ def list_candidates_for_offer(
             cv_analysis_education=app.cv_analysis_education or [],
             cv_analysis_languages=app.cv_analysis_languages or [],
         )
-        for app in apps_with_cv
+        for app in applications
     ]
 
 

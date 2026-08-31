@@ -17,6 +17,18 @@ class InMemoryJobApplicationRepository(JobApplicationRepository):
             if job_app.job_offer_id == job_offer_id
         ]
 
+    def exists_by_job_offer_and_email(
+        self,
+        job_offer_id: str,
+        candidate_email: str,
+    ) -> bool:
+        normalized_email = candidate_email.strip().lower()
+        return any(
+            job_application.job_offer_id == job_offer_id
+            and job_application.candidate_email.strip().lower() == normalized_email
+            for job_application in self._job_applications
+        )
+
     def find_by_id(self, job_application_id: str) -> Optional[JobApplication]:
         for job_application in self._job_applications:
             if job_application.id == job_application_id:

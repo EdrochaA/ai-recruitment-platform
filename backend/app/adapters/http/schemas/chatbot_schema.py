@@ -61,4 +61,7 @@ class RankCandidatesResponse(BaseModel):
     job_offer_title: str
     job_offer_description: str | None = None
     total_candidates: int
+    evaluable_candidates: int = 0
+    candidates_without_cv: int = 0
+    candidates_without_cv_text: int = 0
     ranked_candidates: list[RankedCandidateItem]
