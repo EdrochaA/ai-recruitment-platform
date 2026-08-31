@@ -171,8 +171,11 @@ class AgentCoreCandidateRanker(CandidateRankerPort):
         data = self._try_parse_json(raw)
 
         if not isinstance(data, dict) or "ranking" not in data:
+            # TODO: quitar/reducir tras diagnosticar truncado de respuesta LLM
             logger.warning(
-                "Unexpected LLM response format, raw preview: %s", raw[:300]
+                "Unexpected LLM response format: raw_len=%d raw=%r",
+                len(raw),
+                raw[:5000],
             )
             raise ValueError("LLM response did not contain expected 'ranking' key")
 
