@@ -11,19 +11,16 @@ ENV PYTHONUNBUFFERED=1 \
 # Instala uv (gestor de dependencias)
 RUN pip install --no-cache-dir uv
 
-# Directorio de trabajo temporal para la instalacion
-WORKDIR /app
-
-# Copia primero el manifiesto de dependencias para aprovechar la cache de capas
-COPY backend/pyproject.toml ./backend/
-
-RUN cd backend && uv pip install --system --no-cache .
-
-# Copia el codigo del backend
-COPY backend/ ./backend/
-
 # Directorio de trabajo final: permite que "from app.main" resuelva correctamente
 WORKDIR /app/backend
+
+# Copia primero el manifiesto de dependencias para aprovechar la cache de capas
+COPY pyproject.toml ./
+
+RUN uv pip install --system --no-cache .
+
+# Copia el resto del codigo del backend
+COPY . .
 
 # Puerto esperado por Elastic Beanstalk
 EXPOSE 8080
