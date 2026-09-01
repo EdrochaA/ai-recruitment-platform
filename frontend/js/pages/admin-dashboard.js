@@ -6,10 +6,9 @@
 /**
  * Initialize admin dashboard
  */
-window.initAdminDashboard = async function() {
+window.initAdminDashboard = function() {
   setupCreateHRForm();
   setupManageOffersButton();
-  await loadHRUsers();
 };
 
 function setupManageOffersButton() {
@@ -78,60 +77,8 @@ async function handleCreateHRUser() {
 
     // Reset form
     document.getElementById('create-hr-form')?.reset();
-
-    // Reload users list
-    await loadHRUsers();
   } catch (error) {
     console.error('Error creating HR user:', error);
     showToast('Error al crear el usuario. Intenta de nuevo.', 'error');
   }
-}
-
-/**
- * Load HR users
- */
-async function loadHRUsers() {
-  try {
-    const users = await authSystem.getHRUsers();
-    renderHRUsers(users);
-  } catch (error) {
-    console.error('Error loading HR users:', error);
-    renderHRUsers([]);
-    showToast('No se pudieron cargar los usuarios de Recursos Humanos', 'error');
-  }
-}
-
-/**
- * Render HR users table
- */
-function renderHRUsers(users) {
-  const container = document.getElementById('hr-users-list');
-
-  if (users.length === 0) {
-    container.innerHTML = '<p style="text-align: center; color: var(--gray-500);">No hay usuarios HR registrados</p>';
-    return;
-  }
-
-  const html = `
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Correo</th>
-          <th>Creado</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${users.map(user => `
-          <tr>
-            <td>${user.name}</td>
-            <td>${user.email}</td>
-            <td>${Format.date(user.created_at)}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  `;
-
-  container.innerHTML = html;
 }

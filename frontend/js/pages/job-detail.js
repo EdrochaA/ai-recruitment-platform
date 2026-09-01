@@ -15,7 +15,6 @@ window.initJobDetail = function(params) {
 
   renderJobDetail();
   setupDeleteButton();
-  setupBackButton();
 };
 
 /**
@@ -63,11 +62,7 @@ function renderApplySection(container) {
       </button>
     `;
   } else {
-    container.innerHTML = `
-      <div class="alert alert--error" style="margin-top: 2rem;">
-        <p>Solo los candidatos pueden aplicar a ofertas. Tu cuenta es de tipo: <strong>${authSystem.getCurrentUser().role}</strong></p>
-      </div>
-    `;
+    container.replaceChildren();
   }
 }
 
@@ -77,19 +72,4 @@ function renderApplySection(container) {
 function setupDeleteButton() {
   // Only show delete option to HR who created it
   // For now, we would need to track creator - skipping for MVP
-}
-
-/**
- * Setup back button
- */
-function setupBackButton() {
-  const backBtn = document.getElementById('back-button');
-  if (!backBtn) return;
-
-  backBtn.onclick = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    router.navigate('home');
-    window.app?.updateNavLinks?.();
-  };
 }
