@@ -160,6 +160,7 @@ const Validation = {
   isValidPassword(password) {
     return typeof password === 'string'
       && Array.from(password).length >= 8
+      && new TextEncoder().encode(password).length <= 72
       && /\p{L}/u.test(password)
       && /[\p{P}\p{S}]/u.test(password);
   },

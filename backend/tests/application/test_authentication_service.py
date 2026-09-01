@@ -68,9 +68,10 @@ class AuthenticationServiceTests(unittest.IsolatedAsyncioTestCase):
             "Password1",
             "Abcdefg\u200d",
             "aaaaaaa\u0301",
+            f"{'A' * 72}!",
         ):
             with self.subTest(password=password):
-                with self.assertRaisesRegex(ValueError, "al menos 8 caracteres"):
+                with self.assertRaisesRegex(ValueError, "entre 8 caracteres y 72 bytes"):
                     await service.register_user(
                         name="Candidate",
                         email="candidate@example.com",

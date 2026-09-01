@@ -31,7 +31,7 @@ async def signup(user_data: UserCreateRequest):
     
     - **name**: User full name
     - **email**: User email (must be unique)
-    - **password**: At least 8 characters, including one letter and one special character
+    - **password**: 8 characters minimum, 72 UTF-8 bytes maximum, including one letter and one special character
     
     Note: All new accounts are created as 'candidate' role
     """
@@ -60,7 +60,7 @@ async def login(credentials: UserLoginRequest):
     Authenticate user and get JWT token
     
     - **email**: User email
-    - **password**: At least 8 characters, including one letter and one special character
+    - **password**: 8 characters minimum, 72 UTF-8 bytes maximum, including one letter and one special character
     """
     try:
         result = await auth_service.authenticate_user(

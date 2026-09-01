@@ -58,7 +58,7 @@ async function handleCreateHRUser() {
   }
 
   if (!passwordInput.value || !Validation.isValidPassword(passwordInput.value)) {
-    showToast('La contraseña debe tener al menos 8 caracteres, una letra y un carácter especial', 'error');
+    showToast('La contraseña debe tener entre 8 caracteres y 72 bytes, una letra y un carácter especial', 'error');
     return;
   }
 

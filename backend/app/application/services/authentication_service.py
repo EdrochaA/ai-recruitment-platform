@@ -15,7 +15,7 @@ class AuthenticationService:
     """High-level authentication service - Coordinates use cases"""
 
     PASSWORD_ERROR = (
-        "La contraseña debe tener al menos 8 caracteres, una letra "
+        "La contraseña debe tener entre 8 caracteres y 72 bytes, una letra "
         "y un carácter especial"
     )
     
@@ -165,5 +165,11 @@ class AuthenticationService:
             unicodedata.category(character).startswith(("P", "S"))
             for character in password
         )
-        if len(password) < 8 or not has_letter or not has_special:
+        password_size = len(password.encode("utf-8"))
+        if (
+            len(password) < 8
+            or password_size > 72
+            or not has_letter
+            or not has_special
+        ):
             raise ValueError(cls.PASSWORD_ERROR)
