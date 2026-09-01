@@ -96,7 +96,6 @@ window.showConfirmDialog = function(message, options = {}) {
 class Application {
   constructor() {
     this.initialized = false;
-    this.SIDEBAR_COLLAPSED_KEY = 'ai_recruitment_sidebar_collapsed';
     this.initializationPromise = this.initialize();
   }
 
@@ -340,8 +339,6 @@ class Application {
    */
   setupShell() {
     const shell = document.getElementById('app-shell');
-    shell?.classList.remove('sidebar-collapsed');
-    localStorage.removeItem(this.SIDEBAR_COLLAPSED_KEY);
 
     // Mobile hamburger toggle
     document.getElementById('topbar-menu-btn')?.addEventListener('click', () => {
@@ -380,6 +377,7 @@ class Application {
     if (isAuthenticated && user) {
       // Show sidebar shell
       shell?.classList.remove('no-sidebar');
+      shell?.classList.toggle('sidebar-collapsed', ['admin', 'hr'].includes(user.role));
 
       // Ensure the "Plataforma" section is expanded so its nav items are visible
       document.getElementById('sidebar-section-platform')?.classList.remove('collapsed');
@@ -402,6 +400,7 @@ class Application {
     } else {
       // Hide sidebar shell (full-width content + login)
       shell?.classList.add('no-sidebar');
+      shell?.classList.remove('sidebar-collapsed');
       this.closeMobileSidebar();
 
       if (authBtn) authBtn.style.display = 'inline-flex';
