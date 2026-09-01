@@ -126,6 +126,9 @@ class Router {
       // Update document title
       document.title = route.title;
 
+      // Keep navigation state in sync even if page initialization fails.
+      window.app?.updateNavLinks?.();
+
       // Call page-specific init if available (e.g. initChat, initHrDashboard)
       const initFunctionName = 'init' + routeName.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
       if (window[initFunctionName]) {

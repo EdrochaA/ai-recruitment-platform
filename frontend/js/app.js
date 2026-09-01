@@ -286,7 +286,7 @@ class Application {
     }
 
     if (!Validation.isValidPassword(password)) {
-      showToast('La contraseña debe tener al menos 6 caracteres', 'error');
+      showToast('La contraseña debe tener al menos 8 caracteres, una letra y un carácter especial', 'error');
       return;
     }
 
@@ -340,17 +340,8 @@ class Application {
    */
   setupShell() {
     const shell = document.getElementById('app-shell');
-
-    // Restore collapsed preference (desktop)
-    if (localStorage.getItem(this.SIDEBAR_COLLAPSED_KEY) === 'true') {
-      shell?.classList.add('sidebar-collapsed');
-    }
-
-    // Collapse / expand ("/" button)
-    document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => {
-      const collapsed = shell.classList.toggle('sidebar-collapsed');
-      localStorage.setItem(this.SIDEBAR_COLLAPSED_KEY, collapsed ? 'true' : 'false');
-    });
+    shell?.classList.remove('sidebar-collapsed');
+    localStorage.removeItem(this.SIDEBAR_COLLAPSED_KEY);
 
     // Mobile hamburger toggle
     document.getElementById('topbar-menu-btn')?.addEventListener('click', () => {

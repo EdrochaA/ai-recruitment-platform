@@ -158,7 +158,10 @@ const Validation = {
    * Validate password
    */
   isValidPassword(password) {
-    return password && password.length >= 6;
+    return typeof password === 'string'
+      && Array.from(password).length >= 8
+      && /\p{L}/u.test(password)
+      && /[\p{P}\p{S}]/u.test(password);
   },
 
   /**

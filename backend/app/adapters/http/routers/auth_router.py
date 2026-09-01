@@ -3,7 +3,7 @@ Authentication Router
 HTTP endpoints for user signup, login, and admin operations
 """
 
-from fastapi import APIRouter, HTTPException, status, Header
+from fastapi import APIRouter, HTTPException, status, Header, Query
 from typing import Optional
 from app.adapters.http.schemas.user_schemas import (
     UserCreateRequest,
@@ -31,7 +31,7 @@ async def signup(user_data: UserCreateRequest):
     
     - **name**: User full name
     - **email**: User email (must be unique)
-    - **password**: User password (at least 8 characters recommended)
+    - **password**: At least 8 characters, including one letter and one special character
     
     Note: All new accounts are created as 'candidate' role
     """
@@ -60,7 +60,7 @@ async def login(credentials: UserLoginRequest):
     Authenticate user and get JWT token
     
     - **email**: User email
-    - **password**: User password
+    - **password**: At least 8 characters, including one letter and one special character
     """
     try:
         result = await auth_service.authenticate_user(
@@ -138,4 +138,39 @@ async def create_user_as_admin(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error creating user"
+        )
+
+
+@router.get("/admin/users")
+async def list_users_as_admin(
+    role: Optional[str] = Query(None, pattern="^(hr|admin|candidate)$"),
+    authorization: Optional[str] = Header(None),
+):
+    """List users, optionally filtered by role (admin only)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+
+    payload = auth_service.token_service.verify_token(authorization.split(" ", 1)[1])
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+    if payload.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can list users",
+        )
+
+    try:
+        return await auth_service.list_users_as_admin(payload.get("email"), role)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error listing users",
         )

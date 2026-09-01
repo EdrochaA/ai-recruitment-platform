@@ -66,6 +66,11 @@ class MongoDBUserRepository(UserRepositoryPort):
     async def user_exists(self, email: str) -> bool:
         """Check if user exists by email"""
         return self.users_collection.find_one({"email": email}) is not None
+
+    async def list_users(self, role: Optional[UserRole] = None) -> list[User]:
+        """List users, optionally filtered by role."""
+        query = {"role": role.value} if role else {}
+        return [self._doc_to_user(doc) for doc in self.users_collection.find(query)]
     
     def _doc_to_user(self, doc: dict) -> User:
         """Convert MongoDB document to User domain model"""

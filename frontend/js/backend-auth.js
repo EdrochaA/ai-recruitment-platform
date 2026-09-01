@@ -248,6 +248,26 @@ class BackendAuthSystem {
       };
     }
   }
+
+  async getHRUsers() {
+    const token = this.getToken();
+    if (!token) {
+      throw new Error('No autenticado');
+    }
+
+    const response = await fetch(`${this.API_BASE_URL}/auth/admin/users?role=hr`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Error al cargar usuarios HR');
+    }
+
+    return response.json();
+  }
 }
 
 // Initialize

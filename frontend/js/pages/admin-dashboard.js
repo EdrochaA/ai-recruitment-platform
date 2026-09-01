@@ -6,10 +6,18 @@
 /**
  * Initialize admin dashboard
  */
-window.initAdminDashboard = function() {
+window.initAdminDashboard = async function() {
   setupCreateHRForm();
-  loadHRUsers();
+  setupManageOffersButton();
+  await loadHRUsers();
 };
+
+function setupManageOffersButton() {
+  const button = document.getElementById('admin-manage-offers');
+  if (button) {
+    button.onclick = () => router.navigate('hr-dashboard');
+  }
+}
 
 /**
  * Setup create HR form
@@ -50,12 +58,12 @@ async function handleCreateHRUser() {
   }
 
   if (!passwordInput.value || !Validation.isValidPassword(passwordInput.value)) {
-    showToast('La contraseña debe tener al menos 6 caracteres', 'error');
+    showToast('La contraseña debe tener al menos 8 caracteres, una letra y un carácter especial', 'error');
     return;
   }
 
   try {
-    const result = authSystem.createHRUser(
+    const result = await authSystem.createHRUser(
       nameInput.value.trim(),
       emailInput.value.trim(),
       passwordInput.value
@@ -69,10 +77,10 @@ async function handleCreateHRUser() {
     showToast('Usuario HR creado exitosamente', 'success');
 
     // Reset form
-    form.reset();
+    document.getElementById('create-hr-form')?.reset();
 
     // Reload users list
-    loadHRUsers();
+    await loadHRUsers();
   } catch (error) {
     console.error('Error creating HR user:', error);
     showToast('Error al crear el usuario. Intenta de nuevo.', 'error');
@@ -82,9 +90,15 @@ async function handleCreateHRUser() {
 /**
  * Load HR users
  */
-function loadHRUsers() {
-  const users = authSystem.getHRUsers();
-  renderHRUsers(users);
+async function loadHRUsers() {
+  try {
+    const users = await authSystem.getHRUsers();
+    renderHRUsers(users);
+  } catch (error) {
+    console.error('Error loading HR users:', error);
+    renderHRUsers([]);
+    showToast('No se pudieron cargar los usuarios de Recursos Humanos', 'error');
+  }
 }
 
 /**
@@ -105,7 +119,6 @@ function renderHRUsers(users) {
           <th>Nombre</th>
           <th>Correo</th>
           <th>Creado</th>
-          <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
@@ -113,12 +126,7 @@ function renderHRUsers(users) {
           <tr>
             <td>${user.name}</td>
             <td>${user.email}</td>
-            <td>${Format.date(user.createdAt)}</td>
-            <td>
-              <button class="btn btn--ghost" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" data-action="reset-password" data-email="${user.email}">
-                Reset
-              </button>
-            </td>
+            <td>${Format.date(user.created_at)}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -126,41 +134,4 @@ function renderHRUsers(users) {
   `;
 
   container.innerHTML = html;
-
-  // Add event listeners
-  container.querySelectorAll('[data-action="reset-password"]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const email = e.currentTarget.dataset.email;
-      handleResetPassword(email);
-    });
-  });
-}
-
-/**
- * Handle reset password
- */
-function handleResetPassword(email) {
-  const newPassword = prompt(`Ingresa la nueva contraseña para ${email}:`);
-  
-  if (!newPassword) {
-    return;
-  }
-
-  if (!Validation.isValidPassword(newPassword)) {
-    showToast('La contraseña debe tener al menos 6 caracteres', 'error');
-    return;
-  }
-
-  try {
-    const users = authSystem.getAllUsers();
-    if (users[email]) {
-      users[email].password = newPassword;
-      localStorage.setItem(authSystem.USERS_KEY, JSON.stringify(users));
-      showToast('Contraseña actualizada exitosamente', 'success');
-      loadHRUsers();
-    }
-  } catch (error) {
-    console.error('Error resetting password:', error);
-    showToast('Error al actualizar la contraseña', 'error');
-  }
 }

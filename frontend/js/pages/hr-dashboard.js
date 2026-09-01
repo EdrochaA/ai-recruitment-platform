@@ -28,7 +28,7 @@ async function loadHRJobs() {
   try {
     UI.showLoading();
     const response = await apiClient.getJobOffers();
-    hrJobs = response.offers || [];
+    hrJobs = (response.offers || []).filter(job => job.status !== 'closed');
     
     // For MVP, all jobs are shown to all HR users
     // In production, would filter by creator
@@ -75,13 +75,11 @@ function renderMyOffers() {
  * Create offer card
  */
 function createOfferCard(job) {
-  const isClosed = job.status === 'closed';
-
   return `
     <article class="job-card" data-job-id="${job.id}" style="cursor: pointer;">
       <header class="job-card__header" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
         <h3 class="job-card__title">${Format.truncate(job.title, 50)}</h3>
-        ${getOfferStatusBadge(job.status)}
+        ${getOfferStatusBadge()}
       </header>
       <section class="job-card__body">
         <p class="job-card__location">📍 ${job.location || '-'}</p>
@@ -89,19 +87,15 @@ function createOfferCard(job) {
       </section>
       <footer class="job-card__footer" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
         <div class="job-card__meta">
-          <span style="color: var(--text-muted); font-size: 0.9rem;">${isClosed ? 'Oferta cerrada' : 'Oferta abierta'}</span>
+          <span style="color: var(--text-muted); font-size: 0.9rem;">Oferta abierta</span>
         </div>
       </footer>
     </article>
   `;
 }
 
-function getOfferStatusBadge(status) {
-  const isClosed = status === 'closed';
-  const label = isClosed ? 'Cerrada' : 'Abierta';
-  const className = isClosed ? 'badge badge--secondary' : 'badge badge--success';
-
-  return `<span class="${className}">${label}</span>`;
+function getOfferStatusBadge() {
+  return '<span class="badge badge--success">Abierta</span>';
 }
 
 /**
@@ -138,14 +132,6 @@ function switchTab(tabName) {
   if (tabName === 'my-offers') {
     renderMyOffers();
   }
-}
-
-/**
- * Select tab and load applications
- */
-function selectTabAndLoadApplications(tabName, jobId) {
-  switchTab(tabName);
-  loadApplicationsForJob(jobId);
 }
 
 /**
@@ -343,7 +329,7 @@ function renderOfferDetailsPanel(job) {
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             ${applications.length > 0 ? `<button class="btn btn--primary" onclick="downloadAllCVs('${job.id}', '${job.title || 'oferta'}')">Descargar todos los CVs</button>` : ''}
             ${canManageOffer ? `<button class="btn btn--secondary" id="edit-offer-btn" type="button">Editar oferta</button>` : ''}
-            ${canManageOffer ? `<button class="btn ${job.status === 'closed' ? 'btn--secondary' : 'btn--warning'}" id="toggle-offer-status-btn" type="button">${job.status === 'closed' ? 'Reabrir oferta' : 'Cerrar oferta'}</button>` : ''}
+            ${canManageOffer ? '<button class="btn btn--warning" id="close-offer-btn" type="button">Cerrar oferta</button>' : ''}
           </div>
         </div>
 
@@ -427,7 +413,7 @@ function renderOfferDetailsPanel(job) {
       renderOfferDetailsPanel(job);
     });
 
-    document.getElementById('toggle-offer-status-btn')?.addEventListener('click', async () => {
+    document.getElementById('close-offer-btn')?.addEventListener('click', async () => {
       await closeOfferStatus(job);
     });
 
@@ -490,17 +476,9 @@ async function closeOfferStatus(job = null) {
   const targetJob = job || hrJobs.find(j => j.id === selectedJobId);
   if (!targetJob) return;
 
-  const isClosed = targetJob.status === 'closed';
-  const nextStatus = isClosed ? 'open' : 'closed';
-  const actionTitle = isClosed ? 'Reabrir oferta' : 'Cerrar oferta';
-  const confirmText = isClosed ? 'Reabrir oferta' : 'Cerrar oferta';
-  const confirmMessage = isClosed
-    ? '¿Seguro que deseas reabrir esta oferta? Los candidatos volverán a poder aplicar'
-    : '¿Seguro que deseas cerrar esta oferta? Los candidatos no podrán aplicar';
-
-  const confirmed = await showConfirmDialog(confirmMessage, {
-    title: actionTitle,
-    confirmText,
+  const confirmed = await showConfirmDialog('¿Seguro que deseas cerrar esta oferta? Dejará de aparecer en la plataforma y los candidatos no podrán aplicar', {
+    title: 'Cerrar oferta',
+    confirmText: 'Cerrar oferta',
     cancelText: 'Cancelar',
   });
 
@@ -510,18 +488,19 @@ async function closeOfferStatus(job = null) {
   
   try {
     UI.showLoading();
-    const updatedOffer = isClosed
-      ? await apiClient.updateJobOffer(targetJob.id, { status: 'open' })
-      : await apiClient.closeJobOffer(targetJob.id);
-    const mergedOffer = updatedOffer || { ...targetJob, status: nextStatus };
-
-    hrJobs = hrJobs.map(item => item.id === targetJob.id ? { ...item, ...mergedOffer, status: nextStatus } : item);
+    await apiClient.closeJobOffer(targetJob.id);
+    hrJobs = hrJobs.filter(item => item.id !== targetJob.id);
+    const cachedJobs = Storage.getJobCache();
+    if (cachedJobs) {
+      Storage.saveJobCache(cachedJobs.filter(item => item.id !== targetJob.id));
+    }
     editingOfferId = null;
+    selectedJobId = null;
 
+    closeOfferDetails();
     renderMyOffers();
-    renderOfferDetailsPanel(hrJobs.find(item => item.id === targetJob.id) || mergedOffer);
     UI.hideLoading();
-    showToast(isClosed ? 'Oferta reabierta correctamente' : 'Oferta cerrada correctamente', 'success');
+    showToast('Oferta cerrada correctamente', 'success');
   } catch (error) {
     UI.hideLoading();
     console.error('Error closing offer:', error);
@@ -650,65 +629,6 @@ async function handleCreateOffer() {
     console.error('Error creating offer:', error);
     showToast(error.message || 'Error al crear la oferta. Intenta de nuevo.', 'error');
   }
-}
-
-/**
- * Load applications for a job
- */
-async function loadApplicationsForJob(jobId) {
-  try {
-    UI.showLoading();
-
-    const applicationsResponse = await apiClient.getApplicationsByJobOffer(jobId);
-    const applications = Array.isArray(applicationsResponse) ? applicationsResponse : [];
-    allApplications[jobId] = applications;
-    console.log('Applications loaded:', applications);
-
-    renderApplications(jobId);
-    UI.hideLoading();
-  } catch (error) {
-    UI.hideLoading();
-    console.error('Error loading applications:', error);
-    showToast('Error al cargar las candidaturas. Intenta de nuevo.', 'error');
-  }
-}
-
-/**
- * Render applications
- */
-function renderApplications(jobId) {
-  const container = document.getElementById('applications-list');
-  const emptyState = document.getElementById('applications-empty');
-  const applications = allApplications[jobId] || [];
-  console.log('Applications loaded:', applications);
-
-  if (applications.length === 0) {
-    container.innerHTML = '';
-    emptyState.style.display = 'block';
-    return;
-  }
-
-  emptyState.style.display = 'none';
-
-  const html = `
-    <div class="applications-list" style="display: grid; gap: 10px;">
-      ${applications.map(app => `
-        <article class="application-card" style="border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px;">
-          <h4 style="margin: 0 0 6px 0;">${app.candidate_name || '-'}</h4>
-          <p style="margin: 2px 0;"><strong>Email:</strong> ${app.candidate_email || '-'}</p>
-          <p style="margin: 2px 0;"><strong>CV:</strong> ${app.cv_original_filename || 'Sin CV'}</p>
-          <p style="margin: 2px 0;"><strong>Tamaño:</strong> ${app.cv_size_bytes ? Format.fileSize(app.cv_size_bytes) : '-'}</p>
-          <p style="margin: 2px 0;"><strong>Fecha:</strong> ${Format.dateTime(app.cv_uploaded_at || app.created_at)}</p>
-          <p style="margin: 2px 0;"><strong>Estado:</strong> ${app.cv_processing_status || 'Pendiente'}</p>
-          <div style="margin-top: 8px;">
-            ${getCVActionHtml(app)}
-          </div>
-        </article>
-      `).join('')}
-    </div>
-  `;
-
-  container.innerHTML = html;
 }
 
 /**

@@ -22,7 +22,7 @@ async function loadJobOffers() {
   try {
     UI.showLoading();
     const response = await apiClient.getJobOffers();
-    currentJobs = response.offers || [];
+    currentJobs = (response.offers || []).filter(job => job.status !== 'closed');
     
     // Cache jobs
     Storage.saveJobCache(currentJobs);
@@ -37,7 +37,7 @@ async function loadJobOffers() {
     // Try to use cached data
     const cached = Storage.getJobCache();
     if (cached) {
-      currentJobs = cached;
+      currentJobs = cached.filter(job => job.status !== 'closed');
       filteredJobs = [...currentJobs];
       renderJobListings();
       UI.showError('Usando datos en caché. No se pudo conectar con el servidor.');

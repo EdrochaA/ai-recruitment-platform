@@ -30,3 +30,8 @@ class UserRepositoryPort(ABC):
     async def user_exists(self, email: str) -> bool:
         """Check if user exists"""
         pass
+
+    @abstractmethod
+    async def list_users(self, role: Optional[UserRole] = None) -> list[User]:
+        """List users, optionally filtered by role"""
+        pass

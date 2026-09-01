@@ -3,6 +3,8 @@ Authentication Services - Application Layer
 Coordinates authentication use cases
 """
 
+import unicodedata
+
 from app.domain.entities.user import User, UserRole
 from app.domain.ports.user_repository_port import UserRepositoryPort
 from app.domain.ports.password_hasher_port import PasswordHasherPort
@@ -11,6 +13,11 @@ from app.domain.ports.token_service_port import TokenServicePort
 
 class AuthenticationService:
     """High-level authentication service - Coordinates use cases"""
+
+    PASSWORD_ERROR = (
+        "La contraseña debe tener al menos 8 caracteres, una letra "
+        "y un carácter especial"
+    )
     
     def __init__(
         self,
@@ -25,6 +32,8 @@ class AuthenticationService:
     
     async def register_user(self, name: str, email: str, password: str) -> dict:
         """Register a new CANDIDATE user (public signup)"""
+        self._validate_password(password)
+
         # Check if user already exists
         if await self.user_repository.user_exists(email):
             raise ValueError(f"User with email {email} already exists")
@@ -93,6 +102,8 @@ class AuthenticationService:
         admin_user = await self.user_repository.get_user_by_email(admin_email)
         if not admin_user or not admin_user.is_admin():
             raise ValueError("Only admins can create users")
+
+        self._validate_password(password)
         
         # Check if user already exists
         if await self.user_repository.user_exists(email):
@@ -126,3 +137,33 @@ class AuthenticationService:
                 "role": user.role.value,
             }
         }
+
+    async def list_users_as_admin(self, admin_email: str, role: str | None = None) -> list[dict]:
+        """List users for the admin dashboard."""
+        admin_user = await self.user_repository.get_user_by_email(admin_email)
+        if not admin_user or not admin_user.is_admin():
+            raise ValueError("Only admins can list users")
+
+        user_role = UserRole(role) if role else None
+        users = await self.user_repository.list_users(user_role)
+        return [
+            {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "role": user.role.value,
+                "created_at": user.created_at,
+            }
+            for user in users
+        ]
+
+    @classmethod
+    def _validate_password(cls, password: str) -> None:
+        """Validate passwords used when creating accounts."""
+        has_letter = any(character.isalpha() for character in password)
+        has_special = any(
+            unicodedata.category(character).startswith(("P", "S"))
+            for character in password
+        )
+        if len(password) < 8 or not has_letter or not has_special:
+            raise ValueError(cls.PASSWORD_ERROR)
