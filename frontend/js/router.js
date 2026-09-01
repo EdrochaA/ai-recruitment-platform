@@ -36,7 +36,7 @@ class Router {
       navTitle: 'Aplicar a Oferta',
       element: 'apply-page',
       requiresAuth: true,
-      requiresRoles: ['candidate'],
+      requiresRoles: ['candidate', 'admin'],
     });
 
     this.register('hr-dashboard', {

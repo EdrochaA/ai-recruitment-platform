@@ -47,7 +47,7 @@ function renderJobDetail() {
  */
 function renderApplySection(container) {
   const isAuthenticated = authSystem.isAuthenticated();
-  const isCandidate = authSystem.isCandidate();
+  const canApply = authSystem.isCandidate() || authSystem.isAdmin();
 
   if (!isAuthenticated) {
     container.innerHTML = `
@@ -55,7 +55,7 @@ function renderApplySection(container) {
         <p>Debes <button class="btn btn--link" onclick="router.showAuthModal(); return false;">iniciar sesión</button> para aplicar a esta oferta.</p>
       </div>
     `;
-  } else if (isCandidate) {
+  } else if (canApply) {
     container.innerHTML = `
       <button class="btn btn--primary btn--full" onclick="router.navigate('apply', { job: currentJob }); return false;" style="margin-top: 2rem;">
         Aplicar a esta oferta
