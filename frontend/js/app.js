@@ -377,7 +377,7 @@ class Application {
     if (isAuthenticated && user) {
       // Show sidebar shell
       shell?.classList.remove('no-sidebar');
-      shell?.classList.toggle('sidebar-collapsed', ['admin', 'hr'].includes(user.role));
+      shell?.classList.add('sidebar-collapsed');
 
       // Ensure the "Plataforma" section is expanded so its nav items are visible
       document.getElementById('sidebar-section-platform')?.classList.remove('collapsed');
